@@ -17,44 +17,19 @@
 #ifndef BITVECTOR_H
 #define BITVECTOR_H
 
+#include "bits.h"
+
 #include <cstddef>
-#include <cstdint>
 
-/*
- * Generic configurable-size word type
- */
-template<size_t W>
-struct word_t { };
-
-template<>
-struct word_t<8> {
-    using type = uint8_t;
-};
-
-template<>
-struct word_t<16> {
-    using type = uint16_t;
-};
-
-template<>
-struct word_t<32> {
-    using type = uint32_t;
-};
-
-template<>
-struct word_t<64> {
-    using type = uint64_t;
-};
-
-// FIXME: test __uint128_t availability
-template<>
-struct word_t<128> {
-    using type = __uint128_t;
-};
-
-
-template<size_t W>
-using word = typename word_t<W>::type;
-
+namespace bitvector
+{
+    template<size_t W>
+    class bitvector
+    {
+    public:
+        using word = word_t<W>;
+        constexpr static size<bits> word_size = W;
+    };
+}
 
 #endif // BITVECTOR_H
