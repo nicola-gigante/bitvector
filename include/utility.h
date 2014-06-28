@@ -22,6 +22,7 @@
 #include <utility>
 #include <cassert>
 #include <cmath>
+#include <iterator>
 
 namespace bitvector
 {
@@ -91,6 +92,7 @@ namespace bitvector
         {
             T _v;
         public:
+            constexpr wrap_t() = default;
             constexpr wrap_t(T v) : _v(v) { }
             
             constexpr wrap_t(wrap_t const&) = default;
@@ -99,7 +101,7 @@ namespace bitvector
             wrap_t &operator=(wrap_t const&) = default;
             wrap_t &operator=(wrap_t &&) = default;
             
-            constexpr explicit operator T() const { return _v; }
+            constexpr operator T() const { return _v; }
         };
     
     }
@@ -114,12 +116,14 @@ namespace bitvector
      * Conversion functions between bits and bytes
      */
     template<typename Kind, typename T>
+    constexpr
     details::wrap_t<bits, Kind, T> to_bits(details::wrap_t<bytes, Kind, T> B)
     {
         return T(B) * 8;
     }
     
     template<typename T>
+    constexpr
     details::wrap_t<bytes, details::size_tag, T>
     to_bytes(details::wrap_t<bits, details::size_tag, T> b)
     {
@@ -127,11 +131,70 @@ namespace bitvector
     }
     
     template<typename T>
+    constexpr
     details::wrap_t<bytes, details::index_tag, T>
     to_bytes(details::wrap_t<bits, details::index_tag, T> b)
     {
         return T(b) / 8;
     }
+    
+    /*
+     * array_view-like class.
+     */
+    template<typename T>
+    class array_view
+    {
+        T *_data = nullptr;
+        size_t _size = 0;
+    public:
+        using value_type             = T;
+        using reference              = T       &;
+        using const_reference        = T const &;
+        using pointer                = T       *;
+        using const_pointer          = T const *;
+        using iterator               = T       *;
+        using const_iterator         = T const *;
+        using reverse_iterator       = std::reverse_iterator<iterator>;
+        using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+        using size_type              = size_t;
+        using difference_type        = ptrdiff_t;
+        
+        array_view(T *data, size_t size)
+            : _data(data), _size(size)
+        {
+            assert(data != nullptr);
+            assert(size != 0);
+        }
+        
+        array_view(array_view const&) = default;
+        array_view(array_view &&) = default;
+        
+        array_view &operator=(array_view const&) = default;
+        array_view &operator=(array_view &&) = default;
+        
+        const_pointer data() const { return _data; }
+        pointer       data()       { return _data; }
+        
+        iterator       begin()       { return _data; }
+        iterator       end()         { return _data + _size; }
+        const_iterator begin() const { return _data; }
+        const_iterator end()   const { return _data + _size; }
+        
+        reverse_iterator       rbegin()       { return reverse_iterator(end()); }
+        reverse_iterator       rend()         { return reverse_iterator(begin()); }
+        const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
+        const_reverse_iterator rend()   const { return const_reverse_iterator(begin()); }
+        
+        reference operator[](size_type i) {
+            assert(i < _size);
+            return _data[i];
+        }
+        
+        value_type operator[](size_type i) const {
+            assert(i < _size);
+            return _data[i];
+        }
+    };
     
 } // namespace bitvector
 #endif
