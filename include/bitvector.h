@@ -17,7 +17,8 @@
 #ifndef BITVECTOR_H
 #define BITVECTOR_H
 
-#include "utility.h"
+#include "bits.h"
+#include "packed_array.h"
 
 #include <cstddef>
 #include <cmath>
@@ -51,28 +52,11 @@ namespace bitvector
         size_t counter_size() const { return _counter_size; }
         size_t capacity() const { return _capacity; }
         
-    //private:
-        struct node
-        {
-            word sizes = 0;
-            word ranks = 0;
-        };
-        
-        node *create_node(size_t depth)
-        {
-            const size_t ptrlength = (depth == _heigth ? sizeof(word)
-                                                       : sizeof(node *));
-            const size_t length = sizeof(node) + (_degree + 1) * ptrlength;
-            node *n = reinterpret_cast<node *>(new char[length] { });
-            
-            return n;
-        }
-        
     private:
-        size_t _degree = 0;
-        size_t _heigth = 0; /// Depth of leaves
-        size<bits> _counter_size = 0;
-        size<bits> _capacity = 0;
+        size_t _degree = 0; /// Number of keys in each node
+        size_t _height = 0; /// Height of the root node
+        size<bits> _counter_size = 0; /// Size of the 'size' counter
+        size<bits> _capacity = 0; /// Maximum number of bits stored in the vector
     };
 }
 
