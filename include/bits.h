@@ -68,6 +68,28 @@ namespace bitvector
     template<size_t W>
     using word_t = typename details::word_t<W>::type;
     
+    // Mask functions
+    template<size_t W>
+    word_t<W> ones(size_t begin, size_t end)
+    {
+        if(begin == end)
+            return 0;
+        
+        assert(begin < end);
+        assert(begin < W);
+        assert(end <= W);
+        
+        size_t shift = W - end + begin;
+        
+        return std::numeric_limits<word_t<W>>::max() >> shift << begin;
+    }
+    
+    template<size_t W>
+    word_t<W> zeroes(size_t begin, size_t end)
+    {
+        return ones<W>(0, begin) | ones<W>(end, W);
+    }
+    
     // Extracts from the word the bits in the range [begin, end),
     // counting from zero from the LSB.
     template<typename T>
@@ -77,14 +99,11 @@ namespace bitvector
         
         assert(end >= begin);
         assert(begin < W);
-        assert(end < W);
+        assert(end <= W);
         
-        if(begin == end)
-            return 0;
+        const T mask = ones<W>(begin, end);
         
-        const T mask = std::numeric_limits<T>::max() >> (W - end + begin);
-        
-        return (word >> begin) & mask;
+        return (word & mask) >> begin;
     }
     
     template<typename T, typename U>
@@ -94,11 +113,13 @@ namespace bitvector
         
         assert(end >= begin);
         assert(begin < W);
-        assert(end < W);
+        assert(end <= W);
         
-        const T mask = std::numeric_limits<T>::max() >> (W - end + begin);
+        word_t<W> mask = zeroes<W>(begin, end);
         
-        *word |= (value & mask) << begin;
+        value = (value << begin) & ~mask;
+        
+        *word = (*word & mask) | value;
     }
     
     struct bytes;
