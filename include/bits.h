@@ -25,6 +25,9 @@
 #include <cmath>
 #include <iterator>
 
+#include <iostream>
+#include <iomanip>
+
 namespace bitvector
 {
     namespace details
@@ -64,6 +67,39 @@ namespace bitvector
      */
     template<size_t W>
     using word_t = typename details::word_t<W>::type;
+    
+    // Extracts from the word the bits in the range [begin, end),
+    // counting from zero from the LSB.
+    template<typename T>
+    T get_bitfield(T word, size_t begin, size_t end)
+    {
+        const size_t W = sizeof(T) * 8;
+        
+        assert(end >= begin);
+        assert(begin < W);
+        assert(end < W);
+        
+        if(begin == end)
+            return 0;
+        
+        const T mask = std::numeric_limits<T>::max() >> (W - end + begin);
+        
+        return (word >> begin) & mask;
+    }
+    
+    template<typename T, typename U>
+    void set_bitfield(T *word, size_t begin, size_t end, U value)
+    {
+        const size_t W = sizeof(T) * 8;
+        
+        assert(end >= begin);
+        assert(begin < W);
+        assert(end < W);
+        
+        const T mask = std::numeric_limits<T>::max() >> (W - end + begin);
+        
+        *word |= (value & mask) << begin;
+    }
     
     struct bytes;
     struct bits;

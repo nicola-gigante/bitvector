@@ -50,36 +50,7 @@ namespace bitvector
             _data.resize(length);
         }
         
-        size_t get(size_t index) const
-        {
-            size_t i, l, llen, hlen;
-            std::tie(i, l, llen, hlen) = locate(index);
-            
-            size_t low = _data[i] << l;
-            size_t high = hlen != 0 ? _data[i + 1] >> (W - hlen) : 0;
-            
-            return low | high;
-        }
-        
-        void set(size_t index, size_t value)
-        {
-            size_t i, l, llen, hlen;
-            std::tie(i, l, llen, hlen) = locate(index);
-            
-            // set the value...
-        }
-        
     private:
-        std::tuple<size_t, size_t, size_t, size_t>
-        locate(size_t index) const {
-            size_t i = (_width * index) / W; // Index of the word
-            size_t l = (_width * index) % W; // Bit index inside the word
-            size_t llen = std::min(W - l, _width); // length of the low part
-            size_t hlen = _width - llen; // Length of the high part
-            
-            return { i, l, llen, hlen };
-        }
-        
         std::vector<word_t<W>> _data;
         
         size<bits> _width; // Number of bits per element
