@@ -18,7 +18,7 @@
 #define BITVECTOR_H
 
 #include "bits.h"
-#include "packed_array.h"
+#include "packed_view.h"
 
 #include <cstddef>
 #include <cmath>
@@ -34,9 +34,9 @@ namespace bitvector
                       "Word size must be at least the size of a pointer");
         
         using word = word_t<W>;
-        constexpr static size<bits> word_size = W;
+        constexpr static size_t word_size = W;
         
-        bitvector(size<bits> capacity) : _capacity(capacity)
+        bitvector(size_t capacity) : _capacity(capacity)
         {
             using std::floor;
             using std::ceil;
@@ -55,8 +55,8 @@ namespace bitvector
     private:
         size_t _degree = 0; /// Number of keys in each node
         size_t _height = 0; /// Height of the root node
-        size<bits> _counter_size = 0; /// Size of the 'size' counter
-        size<bits> _capacity = 0; /// Maximum number of bits stored in the vector
+        size_t _counter_size = 0; /// Size of the 'size' counter
+        size_t _capacity = 0; /// Maximum number of bits stored in the vector
     };
 }
 

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef BITVECTOR_PACKED_ARRAY_H
-#define BITVECTOR_PACKED_ARRAY_H
+#ifndef BITVECTOR_PACKED_VIEW_H
+#define BITVECTOR_PACKED_VIEW_H
 
 #include "bits.h"
 
@@ -24,23 +24,34 @@
 
 namespace bitvector
 {
+    /*
+     * This class is a non-owning view on a buffer of elements of W bits,
+     * which presents a collection of contiguous elements of different size.
+     *
+     * The constructor takes the buffer and the length of the buffer,
+     * and then the number of bits of the presented elements and the number
+     * of such elements.
+     *
+     * Then, with operator[] you can access and modify individual elements,
+     * and the view puts the bits in the right places.
+     */
     template<size_t W>
-    class packed_array
+    class packed_view
     {
         template<bool Const>
         class reference_t
         {
-            friend class packed_array;
+            friend class packed_view;
             
             using P = typename std::conditional<Const,
-            packed_array const,
-            packed_array>::type;
+                                                packed_view const,
+                                                packed_view>::type;
             
             P &_v;
             size_t _index;
             
             reference_t(P &v, size_t index)
-            : _v(v), _index(index) { }
+                : _v(v), _index(index) { }
         public:
             operator word_t<W>() const {
                 return _v.get(_index);
@@ -61,25 +72,41 @@ namespace bitvector
         using reference = reference_t<false>;
         using const_reference = reference_t<true>;
         
-        packed_array(size<bits> width, size_t size)
-            : _width(width), _size(size)
+        packed_view(word_t<W> *data, size_t length,
+                     size_t width, size_t size)
+            : _data(data), _length(length), _width(width), _size(size)
         {
+            assert(data != nullptr);
+            assert(length > 0);
+            assert(width > 0);
+            assert(size > 0)
             assert(width <= W);
-            
-            size_t length = size_t(std::ceil((float(width) * size)/W));
-            _data.resize(length);
+            assert(width * size <= W * length);
         }
         
+        // Suggests the length of a buffer required to store the specified
+        // number of elements of the specified width
+        static size_t required_length(size_t width, size_t size)
+        {
+            return size_t(std::ceil((float(width) * size)/W));
+        }
+        
+        // The number of presented elements
         size_t size() const { return _size; }
         
-        word_t<W> &word(size_t i) { return _data[i]; }
-        word_t<W> word(size_t i) const { return _data[i]; }
+        // The length of the underlying buffer
+        size_t length() const { return _length; }
+        
+        word_t<W>      *data(size_t i)       { return _data; }
+        word_t<W> const*data(size_t i) const { return _data; }
         
         const_reference operator[](size_t i) const {
+            assert(i < size());
             return const_reference(*this, i);
         }
         
         reference operator[](size_t i) {
+            assert(i < size());
             return reference(*this, i);
         }
         
@@ -122,9 +149,10 @@ namespace bitvector
         }
         
     private:
-        std::vector<word_t<W>> _data;
+        word_t<W> *_data; // Data buffer
+        size_t _length; // Length of the buffer
         
-        ::bitvector::size<bits> _width; // Number of bits per element
+        size_t _width; // Number of bits per element
         size_t _size; // Number of elements
     };
 }
