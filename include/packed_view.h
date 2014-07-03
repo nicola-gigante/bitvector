@@ -22,6 +22,9 @@
 #include <vector>
 #include <type_traits>
 
+#define REQUIRES(...) \
+typename = typename std::enable_if<(__VA_ARGS__)>::type
+
 namespace bitvector
 {
     /*
@@ -35,9 +38,15 @@ namespace bitvector
      * Then, with operator[] you can access and modify individual elements,
      * and the view puts the bits in the right places.
      */
-    template<size_t W>
-    class packed_view
+    template<size_t W, template<typename T> class Base>
+    class packed_view : protected Base<word_t<W>>
     {
+    protected:
+        using Container = Base<word_t<W>>;
+        
+        Container      &super()       { return static_cast<Container      &>(*this); }
+        Container const&super() const { return static_cast<Container const&>(*this); }
+        
         template<bool Const>
         class reference_t
         {
@@ -72,16 +81,15 @@ namespace bitvector
         using reference = reference_t<false>;
         using const_reference = reference_t<true>;
         
-        packed_view(word_t<W> *data, size_t length,
-                     size_t width, size_t size)
-            : _data(data), _length(length), _width(width), _size(size)
+        template<typename ...Args,
+                 REQUIRES(std::is_constructible<Container, Args...>::value)>
+        packed_view(size_t width, size_t size, Args&& ...args)
+            : Container(std::forward<Args>(args)...), _width(width), _size(size)
         {
-            assert(data != nullptr);
-            assert(length > 0);
             assert(width > 0);
             assert(size > 0)
             assert(width <= W);
-            assert(width * size <= W * length);
+            assert(width * size <= W * length());
         }
         
         // Suggests the length of a buffer required to store the specified
@@ -94,11 +102,11 @@ namespace bitvector
         // The number of presented elements
         size_t size() const { return _size; }
         
-        // The length of the underlying buffer
-        size_t length() const { return _length; }
+        // The length of the underlying container
+        size_t length() const { return Container::size(); }
         
-        word_t<W>      *data(size_t i)       { return _data; }
-        word_t<W> const*data(size_t i) const { return _data; }
+        word_t<W>      *data(size_t i)       { return &super()[0]; }
+        word_t<W> const*data(size_t i) const { return &super()[0]; }
         
         const_reference operator[](size_t i) const {
             assert(i < size());
@@ -131,8 +139,8 @@ namespace bitvector
             size_t i, l, llen, hlen;
             std::tie(i, l, llen, hlen) = locate(index);
             
-            word_t<W> low  = get_bitfield(_data[i], l, l + llen);
-            word_t<W> high = get_bitfield(_data[i + 1], 0, hlen) << llen;
+            word_t<W> low  = get_bitfield(super()[i], l, l + llen);
+            word_t<W> high = get_bitfield(super()[i + 1], 0, hlen) << llen;
             
             return high | low;
         }
@@ -144,16 +152,15 @@ namespace bitvector
             size_t i, l, llen, hlen;
             std::tie(i, l, llen, hlen) = locate(index);
             
-            set_bitfield(&_data[i], l, l + llen, value);
-            set_bitfield(&_data[i + 1], 0, hlen, value >> llen);
+            set_bitfield(&super()[i], l, l + llen, value);
+            set_bitfield(&super()[i + 1], 0, hlen, value >> llen);
         }
-        
+
     private:
-        word_t<W> *_data; // Data buffer
-        size_t _length; // Length of the buffer
-        
         size_t _width; // Number of bits per element
         size_t _size; // Number of elements
     };
 }
 #endif
+
+

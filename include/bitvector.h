@@ -29,13 +29,12 @@ namespace bitvector
     template<size_t W>
     class bitvector
     {
+        class node_vector
+        {
+            
+        };
+        
     public:
-        static_assert(W >= sizeof(void*) * 8,
-                      "Word size must be at least the size of a pointer");
-        
-        using word = word_t<W>;
-        constexpr static size_t word_size = W;
-        
         bitvector(size_t capacity) : _capacity(capacity)
         {
             using std::floor;
