@@ -28,97 +28,109 @@ typename = typename std::enable_if<(__VA_ARGS__)>::type
 namespace bitvector
 {
     /*
-     * This class is a non-owning view on a buffer of elements of W bits,
-     * which presents a collection of contiguous elements of different size.
+     * This class is an adapter that transform a container of elements of W bits,
+     * into collection of contiguous elements of different and arbitrary bit size.
      *
-     * The constructor takes the buffer and the length of the buffer,
-     * and then the number of bits of the presented elements and the number
-     * of such elements.
+     * The constructor takes the width in bits of the elements and the number
+     * of elements to present, in addition to any argument suitable to
+     * construct the underlying container.
      *
-     * Then, with operator[] you can access and modify individual elements,
-     * and the view puts the bits in the right places.
+     * The class provides a container-like interface, including random access
+     * iterators and operator[].
+     *
+     * The default argument for the ContainerT template parameter is array_view.
+     * With this configuration the class behaves like a non-owning view on the
+     * data pointed by the array_view, and the constructor then takes the
+     * pointer to the data buffer and the length.
+     *
      */
-    template<size_t W, template<typename T> class Base>
-    class packed_view : protected Base<word_t<W>>
+    template<size_t W, template<typename...> class ContainerT = array_view>
+    class packed_view
     {
     protected:
-        using Container = Base<word_t<W>>;
-        
-        Container      &super()       { return static_cast<Container      &>(*this); }
-        Container const&super() const { return static_cast<Container const&>(*this); }
-        
-        template<bool Const>
-        class reference_t
-        {
-            friend class packed_view;
-            
-            using P = typename std::conditional<Const,
-                                                packed_view const,
-                                                packed_view>::type;
-            
-            P &_v;
-            size_t _index;
-            
-            reference_t(P &v, size_t index)
-                : _v(v), _index(index) { }
-        public:
-            operator word_t<W>() const {
-                return _v.get(_index);
-            }
-            
-            template<typename = typename std::enable_if<not Const>::type>
-            reference_t &operator=(word_t<W> value)
-            {
-                _v.set(_index, value);
-                
-                return *this;
-            }
-        };
+        using Container = ContainerT<word_t<W>>;
         
     public:
+        class reference;
+        class iterator;
+
         using value_type = word_t<W>;
-        
-        using reference = reference_t<false>;
-        using const_reference = reference_t<true>;
+        using const_reference        = const reference;
+        using const_iterator         = const iterator;
+        using reverse_iterator       = std::reverse_iterator<iterator>;
+        using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+        using size_type              = size_t;
+        using difference_type        = decltype(size_t() - size_t());
         
         template<typename ...Args,
                  REQUIRES(std::is_constructible<Container, Args...>::value)>
         packed_view(size_t width, size_t size, Args&& ...args)
-            : Container(std::forward<Args>(args)...), _width(width), _size(size)
+            : _container(std::forward<Args>(args)...), _width(width), _size(size)
         {
             assert(width > 0);
-            assert(size > 0)
+            assert(size > 0);
             assert(width <= W);
-            assert(width * size <= W * length());
+            assert(width * size <= W * _container.size());
         }
         
-        // Suggests the length of a buffer required to store the specified
-        // number of elements of the specified width
-        static size_t required_length(size_t width, size_t size)
-        {
-            return size_t(std::ceil((float(width) * size)/W));
-        }
+        packed_view(size_t width, size_t size)
+            : packed_view(width, size, required_length(width, size)) { }
+        
+        packed_view(packed_view const&) = default;
+        packed_view(packed_view &&) = default;
+        
+        packed_view &operator=(packed_view const&) = default;
+        packed_view &operator=(packed_view &&) = default;
         
         // The number of presented elements
         size_t size() const { return _size; }
         
-        // The length of the underlying container
-        size_t length() const { return Container::size(); }
-        
-        word_t<W>      *data(size_t i)       { return &super()[0]; }
-        word_t<W> const*data(size_t i) const { return &super()[0]; }
-        
-        const_reference operator[](size_t i) const {
-            assert(i < size());
-            return const_reference(*this, i);
+        Container const&container() const {
+            return _container;
         }
         
-        reference operator[](size_t i) {
-            assert(i < size());
-            return reference(*this, i);
+        Container &container() {
+            return _container;
         }
+        
+        const_reference at(size_t i) const {
+            assert(i < size());
+            return { *this, i };
+        }
+        
+        reference at(size_t i) {
+            assert(i < size());
+            return { *this, i };
+        }
+        
+        const_reference operator[](size_t i) const { return at(i); }
+        reference       operator[](size_t i)       { return at(i); }
+        
+        iterator       begin()       { return { *this, 0 }; }
+        const_iterator begin() const { return { *this, 0 }; }
+        
+        iterator       end()       { return { *this, _size }; }
+        const_iterator end() const { return { *this, _size }; }
+        
+        reverse_iterator       rbegin()       { return { end() }; }
+        const_reverse_iterator rbegin() const { return { end() }; }
+        
+        reverse_iterator       rend()       { return { begin() }; }
+        const_reverse_iterator rend() const { return { begin() }; }
+        
+        const_iterator cbegin() const { return { *this, 0 }; }
+        const_iterator cend() const { return { *this, _size }; }
+        const_reverse_iterator crbegin() const { return { end() }; }
+        const_reverse_iterator crend() const { return { begin() }; }
         
     private:
+        // Suggests the length of a buffer required to store the specified
+        // number of elements of the specified width
+        size_t required_length(size_t width, size_t size)
+        {
+            return size_t(std::ceil((float(width) * size)/W));
+        }
+        
         std::tuple<size_t, size_t, size_t, size_t>
         locate(size_t index) const
         {
@@ -139,8 +151,8 @@ namespace bitvector
             size_t i, l, llen, hlen;
             std::tie(i, l, llen, hlen) = locate(index);
             
-            word_t<W> low  = get_bitfield(super()[i], l, l + llen);
-            word_t<W> high = get_bitfield(super()[i + 1], 0, hlen) << llen;
+            word_t<W> low  = get_bitfield(_container[i], l, l + llen);
+            word_t<W> high = get_bitfield(_container[i + 1], 0, hlen) << llen;
             
             return high | low;
         }
@@ -152,13 +164,147 @@ namespace bitvector
             size_t i, l, llen, hlen;
             std::tie(i, l, llen, hlen) = locate(index);
             
-            set_bitfield(&super()[i], l, l + llen, value);
-            set_bitfield(&super()[i + 1], 0, hlen, value >> llen);
+            set_bitfield(&_container[i], l, l + llen, value);
+            set_bitfield(&_container[i + 1], 0, hlen, value >> llen);
         }
 
     private:
+        Container _container;
+        
         size_t _width; // Number of bits per element
         size_t _size; // Number of elements
+    };
+    
+    template<size_t W, template<typename...> class ContainerT>
+    class packed_view<W, ContainerT>::reference
+    {
+        friend class packed_view;
+        
+        packed_view &_v;
+        size_t _index;
+        
+        reference(packed_view &v, size_t index) : _v(v), _index(index) { }
+        reference(packed_view const&v, size_t index)
+            : _v(const_cast<packed_view&>(v)), _index(index) { }
+    public:
+        operator word_t<W>() const {
+            return _v.get(_index);
+        }
+        
+        reference &operator=(word_t<W> value)
+        {
+            _v.set(_index, value);
+            
+            return *this;
+        }
+    };
+    
+    template<size_t W, template<typename...> class ContainerT>
+    class packed_view<W, ContainerT>::iterator
+    {
+        friend class packed_view;
+    public:
+        iterator() = default;
+        iterator(std::nullptr_t) { }
+        
+        iterator(packed_view &v, size_t i) : _v(&v), _i(i) { }
+        iterator(packed_view const&v, size_t i)
+            : _v(const_cast<packed_view*>(&v)), _i(i) { }
+        
+        iterator(iterator const&) = default;
+        iterator(iterator &&) = default;
+        
+        iterator &operator=(iterator const&) = default;
+        iterator &operator=(iterator &&) = default;
+        
+        // Access
+        const_reference operator*() const {
+            return _v->at(_i);
+        }
+        
+        reference operator*() {
+            return _v->at(_i);
+        }
+        
+        const_reference operator[](size_t i) const {
+            return _v->at(_i + i);
+        }
+        
+        reference operator[](size_t i) {
+            return _v->at(_i + i);
+        }
+        
+        // Equality and Comparisons
+        bool operator==(iterator const&it) const {
+            return _v == it._v && _i == it._i;
+        }
+        
+        bool operator!=(iterator const&it) const { return !(*this == it); }
+        bool operator<(iterator const&it) const { return _i < it._i; }
+        bool operator>(iterator const&it) const { return _i > it._i; }
+        bool operator<=(iterator const&it) const { return _i <= it._i; }
+        bool operator>=(iterator const&it) const { return _i >= it._i; }
+        
+    
+        // Increments and decrements
+        iterator &operator++() {
+            _i++;
+            
+            return *this;
+        }
+        
+        iterator operator++(int) const {
+            iterator t = *this;
+            ++_i;
+            
+            return t;
+        }
+        
+        iterator &operator--() {
+            --_i;
+            
+            return *this;
+        }
+        
+        iterator operator--(int) const {
+            iterator t = *this;
+            --_i;
+            
+            return t;
+        }
+        
+        // Sum and difference
+        iterator &operator+=(difference_type n) {
+            _i += n;
+            
+            return *this;
+        }
+        
+        iterator operator+(difference_type n) const {
+            return { *_v, _i + n };
+        }
+        
+        friend iterator operator+(difference_type n, iterator const&it) {
+            return { *it._v, it._i + n };
+        }
+        
+        iterator &operator-=(difference_type n) {
+            _i -= n;
+            
+            return *this;
+        }
+        
+        iterator operator-(difference_type n) const {
+            return { *_v, _i - n };
+        }
+        
+        friend difference_type operator-(iterator const&it1, iterator const&it2) {
+            return it1._i - it2._i;
+        }
+        
+    private:
+        packed_view *_v = nullptr;
+        size_t _i = 0;
     };
 }
 #endif

@@ -16,8 +16,12 @@
 
 #include "bitvector.h"
 
+#include <vector>
+
+using namespace bitvector;
+
 int main()
 {
-    
+    return 0;
 }
 
