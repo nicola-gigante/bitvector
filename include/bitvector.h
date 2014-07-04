@@ -35,20 +35,14 @@ namespace bitvector
     template<size_t W>
     class bitvector
     {
-        class nodes_t {
-            packed_vector<W> _sizes;
-            packed_vector<W> _ranks;
-            packed_vector<W> _pointers;
-        public:
-            nodes_t(size_t field_size, size_t degree, size_t size);
-        };
-        
     public:
-        bitvector(size_t capacity) : _capacity(capacity)
+        bitvector(size_t capacity)
         {
-            _counter_size = ceil(log2(_capacity)) + 1;
+            _capacity = capacity;
             
-            _degree = W / _counter_size;
+            _counter_width = ceil(log2(_capacity)) + 1;
+            
+            _degree = W / _counter_width;
             
             _leaves_buffer = ceil(sqrt(W) - 1);
             
@@ -69,22 +63,49 @@ namespace bitvector
             // Total number of internal nodes
             size_t nodes_count = ceil(leaves_count /
                                       pow(minimum_degree + 1, max_height));
+            
+            _sizes.resize(_counter_width, nodes_count);
+            _ranks.resize(_counter_width, nodes_count);
+            _pointers.resize(_counter_width, nodes_count);
+            _leaves.resize(leaves_count);
         }
         
-        size_t degree() const { return _degree; }
-        size_t counter_size() const { return _counter_size; }
         size_t capacity() const { return _capacity; }
+        size_t size() const { return _size; }
+        
+        bool empty() const { return _size == 0; }
+        bool full() const { return _size == _capacity; }
         
     private:
-        packed_view<W, std::vector> _data;
+        // This "allocation" is only to take the first free node and return it
+        size_t alloc_node() {
+            assert(_free_node < _sizes.size());
+            return _free_node++;
+        }
         
+    private:
         // Maximum number of bits stored in the vector
         // Refered as N in the paper
         size_t _capacity;
         
-        // Size of the nodes' 'size' counter
-        size_t _counter_size;
-
+        // Current number of bits stored in the bitvector
+        size_t _size = 0;
+        
+        // Index of the first unused node in the nodes arrays
+        size_t _free_node = 0;
+        
+        // Height of the root node (i.e. of the tree)
+        size_t _height;
+        
+        // Packed arrays of data representing the nodes
+        packed_array<W> _sizes;
+        packed_array<W> _ranks;
+        packed_array<W> _pointers;
+        std::vector<word_t<W>> _leaves;
+        
+        // Bit width of the nodes' counters inside nodes' words
+        size_t _counter_width;
+        
         // Number of counters per node, refered as d in the paper
         size_t _degree;
         
@@ -95,12 +116,6 @@ namespace bitvector
         // Number of leaves used for redistribution for ammortized
         // constant insertion time. Refered as b' in the paper
         size_t _nodes_buffer;
-        
-        // Height of the root node (i.e. of the tree)
-        size_t _height;
-        
-        // Container of the arrays of data representing the nodes
-        nodes_t _nodes;
     };
 }
 

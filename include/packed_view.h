@@ -49,11 +49,16 @@ namespace bitvector
         
     public:
         class reference;
-        class iterator;
+        class const_reference;
 
-        using value_type = word_t<W>;
-        using const_reference        = const reference;
-        using const_iterator         = const iterator;
+        template<bool>
+        class iterator_t;
+
+        using iterator               = iterator_t<false>;
+        using const_iterator         = iterator_t<true>;
+        using pointer                = iterator;
+        using const_pointer          = const_iterator;
+        using value_type             = word_t<W>;
         using reverse_iterator       = std::reverse_iterator<iterator>;
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
         using size_type              = size_t;
@@ -99,6 +104,20 @@ namespace bitvector
             assert(i < size());
             return { *this, i };
         }
+        
+        template<typename C = Container,
+                 typename = decltype(std::declval<C>().resize(42))>
+        void resize(size_t width, size_t size)
+        {
+            assert(width > 0);
+            assert(size > 0);
+            assert(width <= W);
+            
+            _width = width;
+            _size = size;
+            container().resize(required_length(width, size));
+        }
+        
         
         const_reference operator[](size_t i) const { return at(i); }
         reference       operator[](size_t i)       { return at(i); }
@@ -181,8 +200,6 @@ namespace bitvector
         size_t _index;
         
         reference(packed_view &v, size_t index) : _v(v), _index(index) { }
-        reference(packed_view const&v, size_t index)
-            : _v(const_cast<packed_view&>(v)), _index(index) { }
     public:
         operator word_t<W>() const {
             return _v.get(_index);
@@ -197,22 +214,44 @@ namespace bitvector
     };
     
     template<size_t W, template<typename...> class ContainerT>
-    class packed_view<W, ContainerT>::iterator
+    class packed_view<W, ContainerT>::const_reference
+    {
+        friend class packed_view;
+        
+        packed_view const&_v;
+        size_t _index;
+        
+        const_reference(packed_view const&v, size_t index)
+            : _v(v), _index(index) { }
+    public:
+        operator word_t<W>() const {
+            return _v.get(_index);
+        }
+    };
+    
+    template<size_t W, template<typename...> class ContainerT>
+    template<bool Const>
+    class packed_view<W, ContainerT>::iterator_t
     {
         friend class packed_view;
     public:
-        iterator() = default;
-        iterator(std::nullptr_t) { }
+        using difference_type   = packed_view::difference_type;
+        using value_type        = packed_view::value_type;
+        using pointer           = iterator_t;
+        using iterator_category = std::random_access_iterator_tag;
         
-        iterator(packed_view &v, size_t i) : _v(&v), _i(i) { }
-        iterator(packed_view const&v, size_t i)
+        iterator_t() = default;
+        iterator_t(std::nullptr_t) { }
+        
+        iterator_t(packed_view &v, size_t i) : _v(&v), _i(i) { }
+        iterator_t(packed_view const&v, size_t i)
             : _v(const_cast<packed_view*>(&v)), _i(i) { }
         
-        iterator(iterator const&) = default;
-        iterator(iterator &&) = default;
+        iterator_t(iterator const&) = default;
+        iterator_t(iterator &&) = default;
         
-        iterator &operator=(iterator const&) = default;
-        iterator &operator=(iterator &&) = default;
+        iterator_t &operator=(iterator_t const&) = default;
+        iterator_t &operator=(iterator_t &&) = default;
         
         // Access
         const_reference operator*() const {
@@ -232,15 +271,15 @@ namespace bitvector
         }
         
         // Equality and Comparisons
-        bool operator==(iterator const&it) const {
+        bool operator==(iterator_t const&it) const {
             return _v == it._v && _i == it._i;
         }
         
-        bool operator!=(iterator const&it) const { return !(*this == it); }
-        bool operator<(iterator const&it) const { return _i < it._i; }
-        bool operator>(iterator const&it) const { return _i > it._i; }
-        bool operator<=(iterator const&it) const { return _i <= it._i; }
-        bool operator>=(iterator const&it) const { return _i >= it._i; }
+        bool operator!=(iterator_t const&it) const { return !(*this == it); }
+        bool operator<(iterator_t const&it) const { return _i < it._i; }
+        bool operator>(iterator_t const&it) const { return _i > it._i; }
+        bool operator<=(iterator_t const&it) const { return _i <= it._i; }
+        bool operator>=(iterator_t const&it) const { return _i >= it._i; }
         
     
         // Increments and decrements
@@ -305,7 +344,7 @@ namespace bitvector
     };
     
     template<size_t W>
-    using packed_vector = packed_view<W, std::vector>;
+    using packed_array = packed_view<W, std::vector>;
 }
 #endif
 
