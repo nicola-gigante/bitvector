@@ -22,9 +22,6 @@
 #include <vector>
 #include <type_traits>
 
-#define REQUIRES(...) \
-typename = typename std::enable_if<(__VA_ARGS__)>::type
-
 namespace bitvector
 {
     /*
@@ -306,6 +303,9 @@ namespace bitvector
         packed_view *_v = nullptr;
         size_t _i = 0;
     };
+    
+    template<size_t W>
+    using packed_vector = packed_view<W, std::vector>;
 }
 #endif
 

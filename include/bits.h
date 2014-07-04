@@ -25,8 +25,8 @@
 #include <cmath>
 #include <iterator>
 
-#include <iostream>
-#include <iomanip>
+#define REQUIRES(...) \
+typename = typename std::enable_if<(__VA_ARGS__)>::type
 
 namespace bitvector
 {
@@ -92,7 +92,8 @@ namespace bitvector
     
     // Extracts from the word the bits in the range [begin, end),
     // counting from zero from the LSB.
-    template<typename T>
+    template<typename T,
+             REQUIRES(std::is_integral<T>::value)>
     T get_bitfield(T word, size_t begin, size_t end)
     {
         const size_t W = sizeof(T) * 8;
@@ -106,7 +107,9 @@ namespace bitvector
         return (word & mask) >> begin;
     }
     
-    template<typename T, typename U>
+    template<typename T, typename U,
+             REQUIRES(std::is_integral<T>::value),
+             REQUIRES(std::is_integral<U>::type)>
     void set_bitfield(T *word, size_t begin, size_t end, U value)
     {
         const size_t W = sizeof(T) * 8;
