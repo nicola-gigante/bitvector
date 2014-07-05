@@ -64,6 +64,8 @@ namespace bitvector
         using size_type              = size_t;
         using difference_type        = decltype(size_t() - size_t());
         
+        packed_view() = default;
+        
         template<typename ...Args,
                  REQUIRES(std::is_constructible<Container, Args...>::value)>
         packed_view(size_t width, size_t size, Args&& ...args)
@@ -106,7 +108,8 @@ namespace bitvector
         }
         
         template<typename C = Container,
-                 typename = decltype(std::declval<C>().resize(42))>
+                 typename = decltype(std::declval<C>().reserve(42),
+                                     std::declval<C>().resize(42))>
         void resize(size_t width, size_t size)
         {
             assert(width > 0);
@@ -115,7 +118,10 @@ namespace bitvector
             
             _width = width;
             _size = size;
-            container().resize(required_length(width, size));
+            size_t length = required_length(width, size);
+            
+            container().reserve(length);
+            container().resize(length);
         }
         
         
@@ -187,8 +193,8 @@ namespace bitvector
     private:
         Container _container;
         
-        size_t _width; // Number of bits per element
-        size_t _size; // Number of elements
+        size_t _width = 0; // Number of bits per element
+        size_t _size = 0; // Number of elements
     };
     
     template<size_t W, template<typename...> class ContainerT>

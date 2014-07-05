@@ -24,6 +24,9 @@
 #include <cmath>
 #include <memory>
 
+#include <iostream>
+#include <iomanip>
+
 namespace bitvector
 {
     using std::floor;
@@ -49,9 +52,8 @@ namespace bitvector
             _nodes_buffer  = ceil(sqrt(_degree) - 1);
             
             // Total number of leaves to allocate space for
-            size_t leaves_count = ceil(_capacity *
-                                       ((_leaves_buffer * (W - _leaves_buffer)) /
-                                        (_leaves_buffer + 1)));
+            size_t leaves_count = ceil(_capacity * (_leaves_buffer + 1) /
+                                      (_leaves_buffer * (W - _leaves_buffer)));
             
             // Maximum height of the tree
             size_t max_height = ceil(log(leaves_count) / log(_degree + 1));
@@ -67,7 +69,20 @@ namespace bitvector
             _sizes.resize(_counter_width, nodes_count);
             _ranks.resize(_counter_width, nodes_count);
             _pointers.resize(_counter_width, nodes_count);
+            
+            _leaves.reserve(leaves_count);
             _leaves.resize(leaves_count);
+        }
+        
+        void info() const {
+            std::cout << "Word width = " << W << " bits\n"
+                      << "Capacity = " << _capacity << " bits\n"
+                      << "Counter width = " << _counter_width << " bits\n"
+                      << "Degree = " << _degree << "\n"
+                      << "b = " << _leaves_buffer << "\n"
+                      << "b' = " << _nodes_buffer << "\n"
+                      << "Number of nodes = " << _sizes.size() << "\n"
+                      << "Number of leaves = " << _leaves.size() << "\n";
         }
         
         size_t capacity() const { return _capacity; }
