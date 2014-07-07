@@ -240,18 +240,23 @@ namespace bitvector
     class packed_view<W, ContainerT>::iterator_t
     {
         friend class packed_view;
+        using PV = typename std::conditional<Const, packed_view const,
+                                                    packed_view>::type;
+        
     public:
         using difference_type   = packed_view::difference_type;
         using value_type        = packed_view::value_type;
         using pointer           = iterator_t;
         using iterator_category = std::random_access_iterator_tag;
         
+        using reference = typename
+                          std::conditional<Const, packed_view::const_reference,
+                                                  packed_view::reference>::type;
+        
         iterator_t() = default;
         iterator_t(std::nullptr_t) { }
         
-        iterator_t(packed_view &v, size_t i) : _v(&v), _i(i) { }
-        iterator_t(packed_view const&v, size_t i)
-            : _v(const_cast<packed_view*>(&v)), _i(i) { }
+        iterator_t(PV &v, size_t i) : _v(&v), _i(i) { }
         
         iterator_t(iterator const&) = default;
         iterator_t(iterator &&) = default;
@@ -259,20 +264,15 @@ namespace bitvector
         iterator_t &operator=(iterator_t const&) = default;
         iterator_t &operator=(iterator_t &&) = default;
         
+        packed_view const&view() const { return _v; }
+        size_t index() const { return _i; }
+        
         // Access
-        const_reference operator*() const {
+        reference operator*() const {
             return _v->at(_i);
         }
         
-        reference operator*() {
-            return _v->at(_i);
-        }
-        
-        const_reference operator[](size_t i) const {
-            return _v->at(_i + i);
-        }
-        
-        reference operator[](size_t i) {
+        reference operator[](size_t i) const {
             return _v->at(_i + i);
         }
         
@@ -345,7 +345,7 @@ namespace bitvector
         }
         
     private:
-        packed_view *_v = nullptr;
+        PV *_v = nullptr;
         size_t _i = 0;
     };
     

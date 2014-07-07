@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <cmath>
 #include <memory>
+#include <type_traits>
 
 #include <iostream>
 #include <iomanip>
@@ -34,6 +35,8 @@ namespace bitvector
     using std::log2;
     using std::sqrt;
     using std::pow;
+    using std::min;
+    using std::max;
     
     template<size_t W>
     class bitvector
@@ -47,28 +50,31 @@ namespace bitvector
             
             _degree = W / _counter_width;
             
-            _leaves_buffer = ceil(sqrt(W) - 1);
+            _leaves_buffer = min(max(size_t(ceil(sqrt(W)) - 1), size_t(1)),
+                                 _degree);
             
-            _nodes_buffer  = ceil(sqrt(_degree) - 1);
+            _nodes_buffer  = max(size_t(ceil(sqrt(_degree)) - 1), size_t(1));
             
             // Total number of leaves to allocate space for
             size_t leaves_count = ceil(_capacity * (_leaves_buffer + 1) /
                                       (_leaves_buffer * (W - _leaves_buffer)));
             
-            // Maximum height of the tree
-            size_t max_height = ceil(log(leaves_count) / log(_degree + 1));
-            
             // Minimum number of fields for each node
             size_t minimum_degree = (_nodes_buffer * (_degree - _nodes_buffer)) /
-                                    (_nodes_buffer - 1);
+                                    (_nodes_buffer + 1);
             
             // Total number of internal nodes
-            size_t nodes_count = ceil(leaves_count /
-                                      pow(minimum_degree + 1, max_height));
+            size_t nodes_count = 0;
+            size_t level_count = leaves_count;
+            do
+            {
+                level_count = ceil(float(level_count) / (minimum_degree + 1));
+                nodes_count += level_count;
+            } while(level_count > 1);
             
-            _sizes.resize(_counter_width, nodes_count);
-            _ranks.resize(_counter_width, nodes_count);
-            _pointers.resize(_counter_width, nodes_count);
+            _sizes.resize(_counter_width, nodes_count * _degree);
+            _ranks.resize(_counter_width, nodes_count * _degree);
+            _pointers.resize(_counter_width, nodes_count * (_degree + 1));
             
             _leaves.reserve(leaves_count);
             _leaves.resize(leaves_count);
@@ -81,7 +87,7 @@ namespace bitvector
                       << "Degree = " << _degree << "\n"
                       << "b = " << _leaves_buffer << "\n"
                       << "b' = " << _nodes_buffer << "\n"
-                      << "Number of nodes = " << _sizes.size() << "\n"
+                      << "Number of nodes = " << _sizes.size() / _degree << "\n"
                       << "Number of leaves = " << _leaves.size() << "\n";
         }
         
@@ -97,6 +103,12 @@ namespace bitvector
             assert(_free_node < _sizes.size());
             return _free_node++;
         }
+        
+        template<bool Const>
+        class node_ptr_t;
+        
+        using node_ptr = node_ptr_t<false>;
+        using const_node_ptr = node_ptr_t<true>;
         
     private:
         // Maximum number of bits stored in the vector
@@ -131,6 +143,71 @@ namespace bitvector
         // Number of leaves used for redistribution for ammortized
         // constant insertion time. Refered as b' in the paper
         size_t _nodes_buffer;
+    };
+    
+    template<size_t W>
+    template<bool Const>
+    class bitvector<W>::node_ptr_t
+    {
+        using BV = typename
+        std::conditional<Const, const bitvector<W>, bitvector<W>>::type;
+        
+        using reference = typename
+        std::conditional<Const, typename packed_array<W>::const_reference,
+                                typename packed_array<W>::reference>::type;
+        
+        BV &_v;
+        size_t _index;
+        
+    public:
+        node_ptr_t(BV &v, size_t index)
+            : _v(v), _index(index) { }
+        
+        node_ptr_t(node_ptr_t const&) = default;
+        node_ptr_t &operator=(node_ptr_t const&) = default;
+        
+        size_t degree() const {
+            return _v.degree();
+        }
+        
+        reference size(size_t k) const
+        {
+            assert(k < degree());
+            return _v._sizes[_index * degree() + k];
+        }
+        
+        reference rank(size_t k) const
+        {
+            assert(k < degree());
+            return _v._ranks[_index * degree() + k];
+        }
+        
+        reference pointer(size_t k) const
+        {
+            assert(k <= degree());
+            return _v._pointers[_index * (degree() + 1) + k];
+        }
+        
+        node_ptr child(size_t k) const
+        {
+            assert(k <= degree());
+            return { _v, pointer(k) };
+        }
+        
+        // The operator-> could be useless, but since this tries to be a smart
+        // pointer, it does support pointer syntax.
+        // But it's a lie. In this way, node->member is the same as node.member
+        node_ptr_t *operator->() {
+            return this;
+        }
+        
+        node_ptr_t const*operator->() const {
+            return this;
+        }
+        
+        operator size_t() const {
+            return _index;
+        }
     };
 }
 
