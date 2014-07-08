@@ -47,12 +47,15 @@ namespace bitvector
     protected:
         using Container = ContainerT<word_t<W>>;
         
-    public:
-        class reference;
-        class const_reference;
-
         template<bool>
         class iterator_t;
+
+        template<bool>
+        class reference_base;
+        
+    public:
+        class reference;
+        using const_reference = reference_base<false>;
 
         using iterator               = iterator_t<false>;
         using const_iterator         = iterator_t<true>;
@@ -107,6 +110,22 @@ namespace bitvector
             return { *this, i };
         }
         
+        const_reference at(size_t begin, size_t end) const {
+            assert(begin < size());
+            assert(end <= size());
+            assert(_width * (end - begin) <= W);
+            
+            return { *this, begin, end };
+        }
+        
+        reference at(size_t begin, size_t end) {
+            assert(begin < size());
+            assert(end <= size());
+            assert(_width * (end - begin) <= W);
+            
+            return { *this, begin, end };
+        }
+        
         template<typename C = Container,
                  typename = decltype(std::declval<C>().reserve(42),
                                      std::declval<C>().resize(42))>
@@ -124,9 +143,16 @@ namespace bitvector
             container().resize(length);
         }
         
-        
         const_reference operator[](size_t i) const { return at(i); }
         reference       operator[](size_t i)       { return at(i); }
+        
+        const_reference operator()(size_t begin, size_t end) const {
+            return at(begin, end);
+        }
+        
+        reference       operator()(size_t begin, size_t end) {
+            return at(begin, end);
+        }
         
         iterator       begin()       { return { *this, 0 }; }
         const_iterator begin() const { return { *this, 0 }; }
@@ -154,24 +180,33 @@ namespace bitvector
         }
         
         std::tuple<size_t, size_t, size_t, size_t>
-        locate(size_t index) const
+        locate(size_t begin, size_t end) const
         {
-            size_t i = (_width * index) / W; /// Word's index into the array
-            size_t l = (_width * index) % W; /// First bit's index into the word
+            size_t len = _width * (end - begin);
+            assert(len <= W);
+            
+            size_t i = (_width * begin) / W; /// Word's index into the array
+            size_t l = (_width * begin) % W; /// First bit's index into the word
             
             /// Length of the low part
-            size_t llen = std::min(W - l, size_t(_width));
-            size_t hlen = _width - llen; /// Length of the high part
+            size_t llen = std::min(W - l, len);
+            size_t hlen = len - llen; /// Length of the high part
             
             return { i, l, llen, hlen };
         }
         
         word_t<W> get(size_t index) const
         {
-            assert(index < _size);
+            return get(index, index + 1);
+        }
+        
+        word_t<W> get(size_t begin, size_t end) const
+        {
+            assert(begin < _size);
+            assert(end <= _size);
             
             size_t i, l, llen, hlen;
-            std::tie(i, l, llen, hlen) = locate(index);
+            std::tie(i, l, llen, hlen) = locate(begin, end);
             
             word_t<W> low  = get_bitfield(_container[i], l, l + llen);
             word_t<W> high = get_bitfield(_container[i + 1], 0, hlen) << llen;
@@ -181,15 +216,21 @@ namespace bitvector
         
         void set(size_t index, word_t<W> value)
         {
-            assert(index < _size);
+            set(index, index + 1, value);
+        }
+        
+        void set(size_t begin, size_t end, word_t<W> value)
+        {
+            assert(begin < _size);
+            assert(end <= _size);
             
             size_t i, l, llen, hlen;
-            std::tie(i, l, llen, hlen) = locate(index);
+            std::tie(i, l, llen, hlen) = locate(begin, end);
             
             set_bitfield(&_container[i], l, l + llen, value);
             set_bitfield(&_container[i + 1], 0, hlen, value >> llen);
         }
-
+        
     private:
         Container _container;
         
@@ -198,40 +239,78 @@ namespace bitvector
     };
     
     template<size_t W, template<typename...> class ContainerT>
-    class packed_view<W, ContainerT>::reference
+    template<bool Const>
+    class packed_view<W, ContainerT>::reference_base
     {
         friend class packed_view;
         
-        packed_view &_v;
-        size_t _index;
+        using PV = typename std::conditional<Const, packed_view const,
+                                                    packed_view>::type;
         
-        reference(packed_view &v, size_t index) : _v(v), _index(index) { }
+        reference_base(PV &v, size_t begin, size_t end)
+            : _v(v), _begin(begin), _end(end) { }
+        
+        reference_base(PV &v, size_t begin)
+            : _v(v), _begin(begin), _end(begin + 1) { }
+        
     public:
-        operator word_t<W>() const {
-            return _v.get(_index);
+        word_t<W> value() const {
+            return _v.get(_begin, _end);
         }
         
-        reference &operator=(word_t<W> value)
-        {
-            _v.set(_index, value);
-            
-            return *this;
+        operator word_t<W>() const {
+            return value();
         }
+        
+    protected:
+        PV &_v;
+        size_t _begin;
+        size_t _end;
     };
     
     template<size_t W, template<typename...> class ContainerT>
-    class packed_view<W, ContainerT>::const_reference
+    class packed_view<W, ContainerT>::reference : public reference_base<false>
     {
         friend class packed_view;
         
-        packed_view const&_v;
-        size_t _index;
+        using Base = reference_base<false>;
         
-        const_reference(packed_view const&v, size_t index)
-            : _v(v), _index(index) { }
+        using Base::Base;
+        
     public:
-        operator word_t<W>() const {
-            return _v.get(_index);
+        reference &operator=(word_t<W> v)
+        {
+            Base::_v.set(Base::_begin, Base::_end, v);
+            
+            return *this;
+        }
+        
+        reference &operator +=(word_t<W> v)
+        {
+            *this = *this + v;
+            return *this;
+        }
+        
+        reference &operator -=(word_t<W> v)
+        {
+            *this = *this - v;
+            return *this;
+        }
+        
+        reference &operator>>=(size_t n)
+        {
+            assert(n < W);
+            
+            *this = *this >> n;
+            return *this;
+        }
+        
+        reference &operator<<=(size_t n)
+        {
+            assert(n < W);
+            
+            *this = *this << n;
+            return *this;
         }
     };
     

@@ -109,7 +109,7 @@ namespace bitvector
     
     template<typename T, typename U,
              REQUIRES(std::is_integral<T>::value),
-             REQUIRES(std::is_integral<U>::type)>
+             REQUIRES(std::is_integral<U>::value)>
     void set_bitfield(T *word, size_t begin, size_t end, U value)
     {
         const size_t W = sizeof(T) * 8;

@@ -22,6 +22,26 @@ using namespace bitvector;
 
 int main()
 {
+    word_t<64> v[7];
+    
+    packed_view<64> pv(10, 20, v, 7);
+    
+    word_t<64> i = 0;
+    for(auto &&x : pv)
+    {
+        x = i++;
+    }
+    
+    pv(0, 4) = 45141239850;
+    
+    pv[0] -= 2;
+    pv[1] += 2;
+    pv[2] >>= 1;
+    pv[3] <<= 1;
+    
+    for(auto x : pv)
+        std::cout << x << "\n";
+    
     return 0;
 }
 
