@@ -34,8 +34,8 @@ void test_packed_array()
     
     pv(0,4) = 595434449450;
     
-    std::cout << binary(word_t<64>(595434449450), 10) << "\n";
-    std::cout << binary(word_t<64>(pv(0, 4)), 10) << "\n";
+    std::cout << to_binary(word_t<64>(595434449450), 10) << "\n";
+    std::cout << to_binary(word_t<64>(pv(0, 4)), 10) << "\n";
     
     pv[0] -= 2;
     pv[1] += 2;
@@ -45,19 +45,42 @@ void test_packed_array()
     for(size_t i = 0; i < 4; i++)
         std::cout << pv[i] << "\n";
     
-    std::cout << binary(word_t<64>(595434449450), 10) << "\n";
-    std::cout << binary(word_t<64>(pv(0, 4)), 10) << "\n";
+    std::cout << to_binary(word_t<64>(595434449450), 10) << "\n";
+    std::cout << to_binary(word_t<64>(pv(0, 4)), 10) << "\n";
+}
+
+void test_popcount()
+{
+    constexpr auto v = (word_t<128>(1) << 64) + 1;
+    
+    static_assert(popcount(v) == 2, "popcount() doesn't work");
+}
+
+void test_insert_bit()
+{
+    word_t<32> w = 0x7FFFFFFF;
+    
+    w = insert_bit(w, 15, 0);
+    
+    assert(w == 0xFFFF7FFF);
 }
 
 int main()
 {
-    /*bitvector<64> v(1000);
+    bitvector<64> v(10000);
     
-    v.info();
+    v.root().size(0) = 2;
+    v.root().size(1) = 4;
+    v.root().size(2) = 8;
+    v.root().size(3) = 16;
     
-    std::cout << std::boolalpha << v.access(0) << "\n";*/
+    //    v.info();
     
-    test_packed_array();
+    std::cout << std::boolalpha << v.access(0) << "\n";
+    
+    //test_packed_array();
+    
+    
     
     return 0;
 }

@@ -31,13 +31,82 @@ typename = typename std::enable_if<(__VA_ARGS__)>::type
 
 namespace bitvector
 {
+    namespace details
+    {
+        template<size_t W>
+        struct word_t { };
+        
+        
+        // FIXME:
+        template<>
+        struct word_t<8> {
+            using type = uint8_t;
+            
+            static constexpr size_t popcount(type v) {
+                return __builtin_popcount(v);
+            }
+        };
+        
+        template<>
+        struct word_t<16> {
+            using type = uint16_t;
+            
+            static constexpr size_t popcount(type v) {
+                return __builtin_popcount(v);
+            }
+        };
+        
+        template<>
+        struct word_t<32> {
+            using type = uint32_t;
+            
+            static constexpr size_t popcount(type v) {
+                return __builtin_popcount(v);
+            }
+        };
+        
+        template<>
+        struct word_t<64> {
+            using type = uint64_t;
+            
+            static constexpr size_t popcount(type v) {
+                return __builtin_popcountll(v);
+            }
+        };
+        
+        // FIXME: test __uint128_t availability
+        template<>
+        struct word_t<128> {
+            using type = __uint128_t;
+
+        public:
+            static constexpr size_t popcount(type v) {
+                
+                return word_t<64>::popcount(v >> 64) +
+                word_t<64>::popcount((v & (type(0xFFFFFFFFFFFFFFFF) << 64)) >> 64);
+            }
+        };
+    }
+    
+    /*
+     * Generic configurable-size word type. The size parameter is in bits.
+     */
+    template<size_t W>
+    using word_t = typename details::word_t<W>::type;
+    
     template<typename T>
-    std::string binary(T val, size_t sep = 8)
+    constexpr size_t popcount(T value)
+    {
+        return details::word_t<sizeof(T) * 8>::popcount(value);
+    }
+    
+    template<typename T>
+    std::string to_binary(T val, size_t sep = 8)
     {
         std::string s;
-        size_t size = sizeof(T) * 8;
+        size_t W = sizeof(T) * 8;
         
-        for(size_t i = 0; i < size; i++)
+        for(size_t i = 0; i < W; i++)
         {
             if(i && i % sep == 0)
                 s.push_back(' ');
@@ -48,44 +117,6 @@ namespace bitvector
         std::reverse(s.begin(), s.end());
         return s;
     }
-    
-    namespace details
-    {
-        template<size_t W>
-        struct word_t { };
-        
-        template<>
-        struct word_t<8> {
-            using type = uint8_t;
-        };
-        
-        template<>
-        struct word_t<16> {
-            using type = uint16_t;
-        };
-        
-        template<>
-        struct word_t<32> {
-            using type = uint32_t;
-        };
-        
-        template<>
-        struct word_t<64> {
-            using type = uint64_t;
-        };
-        
-        // FIXME: test __uint128_t availability
-        template<>
-        struct word_t<128> {
-            using type = __uint128_t;
-        };
-    }
-    
-    /*
-     * Generic configurable-size word type. The size parameter is in bits.
-     */
-    template<size_t W>
-    using word_t = typename details::word_t<W>::type;
     
     // Mask functions
     template<size_t W>
@@ -100,7 +131,7 @@ namespace bitvector
         
         size_t shift = W - end + begin;
         
-        return std::numeric_limits<word_t<W>>::max() >> shift << begin;
+        return (std::numeric_limits<word_t<W>>::max() >> shift) << begin;
     }
     
     template<size_t W>
@@ -126,10 +157,17 @@ namespace bitvector
         return (word & mask) >> begin;
     }
     
+    template<typename T,
+             REQUIRES(std::is_integral<T>::value)>
+    bool get_bit(T word, size_t index)
+    {
+        return bool(get_bitfield(word, index, index + 1));
+    }
+    
     template<typename T, typename U,
              REQUIRES(std::is_integral<T>::value),
              REQUIRES(std::is_integral<U>::value)>
-    void set_bitfield(T *word, size_t begin, size_t end, U value)
+    T set_bitfield(T word, size_t begin, size_t end, U value)
     {
         const size_t W = sizeof(T) * 8;
         
@@ -141,7 +179,25 @@ namespace bitvector
         
         value = (value << begin) & ~mask;
         
-        *word = (*word & mask) | value;
+        return (word & mask) | value;
+    }
+    
+    template<typename T,
+             REQUIRES(std::is_integral<T>::value)>
+    T set_bit(T word, size_t index, bool bit)
+    {
+        return set_bitfield(word, index, index + 1, bit);
+    }
+    
+    template<typename T,
+             REQUIRES(std::is_integral<T>::value)>
+    T insert_bit(T word, size_t index, bool bit)
+    {
+        const size_t W = sizeof(T) * 8;
+        
+        return static_cast<T>(bit) << index                 |
+               (get_bitfield(word, index, W) << index + 1) |
+                get_bitfield(word, 0, index);
     }
     
     /*

@@ -237,8 +237,9 @@ namespace bitvector
             size_t i, l, llen, hlen;
             std::tie(i, l, llen, hlen) = locate(begin, end);
             
-            set_bitfield(&_container[i], l, l + llen, value);
-            set_bitfield(&_container[i + 1], 0, hlen, value >> llen);
+            _container[i]     = set_bitfield(_container[i], l, l + llen, value);
+            _container[i + 1] = set_bitfield(_container[i + 1], 0, hlen,
+                                             value >> llen);
         }
         
     private:

@@ -42,6 +42,18 @@ namespace bitvector
     template<size_t W>
     class bitvector
     {
+        template<bool Const>
+        class node_ptr_t;
+        
+        template<bool>
+        friend class node_ptr_t;
+        
+        using node_ptr       = node_ptr_t<false>;
+        using const_node_ptr = node_ptr_t<true>;
+        
+        using leaf_ptr       = word_t<W> *;
+        using const_leaf_ptr = word_t<W> const*;
+        
     public:
         bitvector(size_t capacity)
         {
@@ -73,15 +85,23 @@ namespace bitvector
                 nodes_count += level_count;
             } while(level_count > 1);
             
+            // Allocate space for nodes and leaves
             _sizes.resize(_counter_width, nodes_count * _degree);
             _ranks.resize(_counter_width, nodes_count * _degree);
             _pointers.resize(_counter_width, nodes_count * (_degree + 1));
             
             _leaves.reserve(leaves_count);
             
+            // Setup the initial root node
             _root = node_ptr(*this, alloc_node());
             _root.pointer(0) = alloc_leaf();
             _height = 1;
+            
+            // Compute masks
+            for(size_t i = 0; i < _degree; i++) {
+                _index_mask <<= _counter_width;
+                _index_mask |= 1;
+            }
         }
         
         void info() const {
@@ -92,31 +112,35 @@ namespace bitvector
                       << "b = " << _leaves_buffer << "\n"
                       << "b' = " << _nodes_buffer << "\n"
                       << "Number of nodes = " << _sizes.size() / _degree << "\n"
-                      << "Number of leaves = " << _leaves.size() << "\n";
+                      << "Number of leaves = " << _leaves.size() << "\n"
+                      << "Index mask:\n"
+                      << to_binary(_index_mask, _counter_width) << "\n"
+                      << "Size flag mask:\n"
+                      << to_binary(size_flag_mask(), _counter_width) << "\n";
         }
         
         size_t capacity() const { return _capacity; }
         size_t size() const { return _size; }
         size_t degree() const { return _degree; }
         
+        size_t counter_width() const { return _counter_width; }
+        
+        node_ptr root() const { return _root; }
+        
         bool empty() const { return _size == 0; }
         bool full() const { return _size == _capacity; }
         
         bool access(size_t index)
         {
-            return access(index, _root, _height);
+            return access(index, _root, _height, _size);
+        }
+        
+        void insert(size_t index, bool bit)
+        {
+            insert(index, bit, _root, _height, _size);
         }
         
     private:
-        template<bool Const>
-        class node_ptr_t;
-        
-        using node_ptr       = node_ptr_t<false>;
-        using const_node_ptr = node_ptr_t<true>;
-        
-        using leaf_ptr       = word_t<W> *;
-        using const_leaf_ptr = word_t<W> const*;
-        
         // This "allocation" is only to take the first free node and return it
         size_t alloc_node() {
             assert(_free_node < _sizes.size());
@@ -128,10 +152,78 @@ namespace bitvector
             return _leaves.size() - 1;
         }
         
-        bool access(size_t index, node_ptr n, size_t h)
+        word_t<W> index_mask() const { return _index_mask; }
+        
+        word_t<W> size_flag_mask() const {
+            return _index_mask << (_counter_width - 1);
+        }
+        
+        std::tuple<size_t, size_t, size_t>
+        locate_subtree(size_t index, node_ptr n, size_t total_size)
+        {
+            size_t child = degree() -
+                           popcount(size_flag_mask() &
+                                    (n.sizes() - index_mask() * index));
+            
+            size_t new_size = child == 0        ? n.size(child) :
+                              child == degree() ? total_size :
+                                                  n.size(child) - n.size(child - 1);
+            
+            size_t new_index = index - (child == 0 ? 0 : n.size(child - 1));
+            
+            assert(new_index < new_size);
+            
+            return { child, new_size, new_index };
+        }
+        
+        bool access(size_t index, node_ptr n, size_t h, size_t size)
         {
             assert(h > 0);
-            return false;
+            
+            size_t child, new_size, new_index;
+            std::tie(child, new_size, new_index) = locate_subtree(index, n, size);
+            
+            if(h == 1) // We'll reach a leaf
+                return get_bit(n.leaf(child), new_index);
+            else // We'll have another node
+                return access(new_index, n.child(child), h - 1, new_size);
+        }
+        
+        void insert(size_t index, bool bit, node_ptr n, size_t h, size_t size)
+        {
+            assert(h > 0);
+            
+            size_t child, new_size, new_index;
+            std::tie(child, new_size, new_index) = locate_subtree(index, n, size);
+            
+            if(h == 1) // We'll reach a leaf
+            {
+                // 1. Check if we need a split
+                if(n.size(child) == W) // We need a split
+                {
+                    // split()...
+                }
+                
+                // 2. Insert the bit
+                size_t &leaf = n.leaf(child);
+                leaf = insert_bit(leaf, new_index, bit);
+            }
+            else // We'll have another node
+            {
+                // 1. Check if we need a split
+                size_t nkeys = locate_subtree(size - 1, n, size);
+                if(nkeys == degree())
+                {
+                    // split()...
+                }
+                
+                // 2. Update counters
+                n.sizes(child, degree()) += 1;
+                n.ranks(child, degree()) += bit;
+                
+                // 3. Continue the traversal
+                insert(new_index, bit, n.child(child), h - 1, new_size);
+            }
         }
         
     private:
@@ -144,18 +236,6 @@ namespace bitvector
         
         // Pointer to the root node of the tree
         node_ptr _root;
-        
-        // Current height of the root tree
-        size_t _height;
-        
-        // Index of the first unused node in the nodes arrays
-        size_t _free_node = 0;
-        
-        // Packed arrays of data representing the nodes
-        packed_array<W, flag_bit> _sizes;
-        packed_array<W> _ranks;
-        packed_array<W> _pointers;
-        std::vector<word_t<W>> _leaves;
         
         // Bit width of the nodes' counters inside nodes' words
         size_t _counter_width;
@@ -170,6 +250,21 @@ namespace bitvector
         // Number of leaves used for redistribution for ammortized
         // constant insertion time. Refered as b' in the paper
         size_t _nodes_buffer;
+        
+        // Current height of the root tree
+        size_t _height;
+        
+        // Index of the first unused node in the nodes arrays
+        size_t _free_node = 0;
+        
+        // Mask with the LSB bit set each |size| bits, used in find_child()
+        word_t<W> _index_mask = 0;
+        
+        // Packed arrays of data representing the nodes
+        packed_array<W, flag_bit> _sizes;
+        packed_array<W> _ranks;
+        packed_array<W> _pointers;
+        std::vector<word_t<W>> _leaves;
     };
     
     template<size_t W>
@@ -183,6 +278,10 @@ namespace bitvector
         std::conditional<Const, typename packed_array<W>::const_reference,
                                 typename packed_array<W>::reference>::type;
         
+        using size_reference = typename
+        std::conditional<Const, typename packed_array<W, flag_bit>::const_reference,
+                                typename packed_array<W, flag_bit>::reference>::type;
+        
         BV *_v = nullptr;
         size_t _index = 0;
         
@@ -195,6 +294,8 @@ namespace bitvector
         
         node_ptr_t(node_ptr_t const&) = default;
         node_ptr_t &operator=(node_ptr_t const&) = default;
+        
+        bool null() const { return _v == nullptr; }
         
         bool operator!() const
         {
@@ -214,66 +315,88 @@ namespace bitvector
             return _v->degree();
         }
         
-        reference sizes() const
+        size_reference sizes(size_t begin, size_t end) const
         {
-            return _v->_sizes(_index * degree(), _index * degree() + degree());
+            assert(!null());
+            assert(begin < degree());
+            assert(end <= degree());
+            return _v->_sizes(_index * degree() + begin, _index * degree() + end);
         }
         
-        reference size(size_t k) const
+        size_reference sizes() const
         {
+            assert(!null());
+            return sizes(0, degree());
+        }
+        
+        size_reference size(size_t k) const
+        {
+            assert(!null());
             assert(k < degree());
             return _v->_sizes[_index * degree() + k];
         }
         
         reference rank(size_t k) const
         {
+            assert(!null());
             assert(k < degree());
             return _v->_ranks[_index * degree() + k];
         }
         
+        reference ranks(size_t begin, size_t end) const
+        {
+            assert(!null());
+            assert(begin < degree());
+            assert(end <= degree());
+            return _v->_ranks(_index * degree() + begin, _index * degree() + end);
+        }
+        
         reference ranks() const
         {
-            return _v->_ranks(_index * degree(), _index * degree() + degree());
+            assert(!null());
+            return ranks(0, degree());
         }
         
         reference pointer(size_t k) const
         {
+            assert(!null());
             assert(k <= degree());
             return _v->_pointers[_index * (degree() + 1) + k];
         }
         
-        reference pointers() const
+        reference pointers(size_t begin, size_t end) const
         {
-            return _v->_pointers(_index * (degree() + 1),
-                                 _index * (degree() + 1) + degree() + 1);
+            assert(!null());
+            assert(begin < degree());
+            assert(end <= degree() + 1);
+            return _v->_pointers(_index * (degree() + 1) + begin,
+                                 _index * (degree() + 1) + end);
         }
         
-        const_node_ptr child(size_t k) const
+        reference pointers() const
         {
+            assert(!null());
+            return pointers(0, degree() + 1);
+        }
+        
+        node_ptr_t child(size_t k) const
+        {
+            assert(!null());
             assert(k <= degree());
             
-            return { _v, pointer(k) };
+            return { *_v, pointer(k) };
         }
         
         word_t<W> leaf(size_t k) const
         {
+            assert(!null());
             return _v->_leaves[size_t(pointer(k))];
         }
         
         word_t<W> &leaf(size_t k)
         {
+            assert(!null());
             return _v->_leaves[size_t(pointer(k))];
-        }
-        
-        // The operator-> could be useless, but since this tries to be a smart
-        // pointer, it does support pointer syntax.
-        // But it's a lie. In this way, node->member is the same as node.member
-        node_ptr_t *operator->() {
-            return this;
-        }
-        
-        node_ptr_t const*operator->() const {
-            return this;
         }
     };
 }
