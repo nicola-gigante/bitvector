@@ -24,6 +24,12 @@
 
 namespace bitvector
 {
+    enum flag_bit_t : bool
+    {
+        no_flag_bit = false,
+        flag_bit = true
+    };
+    
     /*
      * This class is an adapter that transform a container of elements of W bits,
      * into collection of contiguous elements of different and arbitrary bit size.
@@ -41,7 +47,8 @@ namespace bitvector
      * pointer to the data buffer and the length.
      *
      */
-    template<size_t W, template<typename...> class ContainerT = array_view>
+    template<size_t W, template<typename...> class ContainerT = array_view,
+             flag_bit_t FlagBit = no_flag_bit>
     class packed_view
     {
     protected:
@@ -91,6 +98,9 @@ namespace bitvector
         
         // The number of presented elements
         size_t size() const { return _size; }
+        
+        // Width of presented elements
+        size_t width() const { return _width; }
         
         Container const&container() const {
             return _container;
@@ -238,9 +248,9 @@ namespace bitvector
         size_t _size = 0; // Number of elements
     };
     
-    template<size_t W, template<typename...> class ContainerT>
+    template<size_t W, template<typename...> class ContainerT, flag_bit_t FlagBit>
     template<bool Const>
-    class packed_view<W, ContainerT>::reference_base
+    class packed_view<W, ContainerT, FlagBit>::reference_base
     {
         friend class packed_view;
         
@@ -253,9 +263,20 @@ namespace bitvector
         reference_base(PV &v, size_t begin)
             : _v(v), _begin(begin), _end(begin + 1) { }
         
+        reference_base(reference_base const&r) = default;
+        
+        template<bool C, REQUIRES(not C)>
+        reference_base(reference_base<C> const&r)
+            : _v(r._v), _begin(r._begin), _end(r._end) { }
+        
+    protected:
+        word_t<W> flag_bitmask() const {
+            return (FlagBit & (_end == _begin + 1)) << (_v.width() - 1);
+        }
+        
     public:
         word_t<W> value() const {
-            return _v.get(_begin, _end);
+            return _v.get(_begin, _end) & ~flag_bitmask();
         }
         
         operator word_t<W>() const {
@@ -268,8 +289,9 @@ namespace bitvector
         size_t _end;
     };
     
-    template<size_t W, template<typename...> class ContainerT>
-    class packed_view<W, ContainerT>::reference : public reference_base<false>
+    template<size_t W, template<typename...> class ContainerT, flag_bit_t FlagBit>
+    class packed_view<W, ContainerT, FlagBit>::reference
+        : public reference_base<false>
     {
         friend class packed_view;
         
@@ -280,6 +302,7 @@ namespace bitvector
     public:
         reference &operator=(word_t<W> v)
         {
+            v = v | Base::flag_bitmask();
             Base::_v.set(Base::_begin, Base::_end, v);
             
             return *this;
@@ -314,9 +337,9 @@ namespace bitvector
         }
     };
     
-    template<size_t W, template<typename...> class ContainerT>
+    template<size_t W, template<typename...> class ContainerT, flag_bit_t FlagBit>
     template<bool Const>
-    class packed_view<W, ContainerT>::iterator_t
+    class packed_view<W, ContainerT, FlagBit>::iterator_t
     {
         friend class packed_view;
         using PV = typename std::conditional<Const, packed_view const,
@@ -428,8 +451,8 @@ namespace bitvector
         size_t _i = 0;
     };
     
-    template<size_t W>
-    using packed_array = packed_view<W, std::vector>;
+    template<size_t W, flag_bit_t FlagBit = no_flag_bit>
+    using packed_array = packed_view<W, std::vector, FlagBit>;
 }
 #endif
 

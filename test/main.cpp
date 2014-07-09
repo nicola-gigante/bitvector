@@ -20,11 +20,11 @@
 
 using namespace bitvector;
 
-int main()
+void test_packed_array()
 {
     word_t<64> v[7];
     
-    packed_view<64> pv(10, 20, v, 7);
+    packed_view<64, array_view, flag_bit> pv(10, 20, v, 7);
     
     word_t<64> i = 0;
     for(auto &&x : pv)
@@ -32,15 +32,32 @@ int main()
         x = i++;
     }
     
-    pv(0, 4) = 45141239850;
+    pv(0,4) = 595434449450;
+    
+    std::cout << binary(word_t<64>(595434449450), 10) << "\n";
+    std::cout << binary(word_t<64>(pv(0, 4)), 10) << "\n";
     
     pv[0] -= 2;
     pv[1] += 2;
     pv[2] >>= 1;
     pv[3] <<= 1;
     
-    for(auto x : pv)
-        std::cout << x << "\n";
+    for(size_t i = 0; i < 4; i++)
+        std::cout << pv[i] << "\n";
+    
+    std::cout << binary(word_t<64>(595434449450), 10) << "\n";
+    std::cout << binary(word_t<64>(pv(0, 4)), 10) << "\n";
+}
+
+int main()
+{
+    /*bitvector<64> v(1000);
+    
+    v.info();
+    
+    std::cout << std::boolalpha << v.access(0) << "\n";*/
+    
+    test_packed_array();
     
     return 0;
 }

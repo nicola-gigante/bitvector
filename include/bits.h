@@ -24,12 +24,31 @@
 #include <cassert>
 #include <cmath>
 #include <iterator>
+#include <string>
 
 #define REQUIRES(...) \
 typename = typename std::enable_if<(__VA_ARGS__)>::type
 
 namespace bitvector
 {
+    template<typename T>
+    std::string binary(T val, size_t sep = 8)
+    {
+        std::string s;
+        size_t size = sizeof(T) * 8;
+        
+        for(size_t i = 0; i < size; i++)
+        {
+            if(i && i % sep == 0)
+                s.push_back(' ');
+            s.push_back(val % 2 ? '1' : '0');
+            val = val / 2;
+        }
+        
+        std::reverse(s.begin(), s.end());
+        return s;
+    }
+    
     namespace details
     {
         template<size_t W>
