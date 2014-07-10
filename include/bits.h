@@ -25,6 +25,7 @@
 #include <cmath>
 #include <iterator>
 #include <string>
+#include <type_traits>
 
 #define REQUIRES(...) \
 typename = typename std::enable_if<(__VA_ARGS__)>::type
@@ -35,7 +36,6 @@ namespace bitvector
     {
         template<size_t W>
         struct word_t { };
-        
         
         // FIXME:
         template<>
@@ -220,11 +220,18 @@ namespace bitvector
         using size_type              = size_t;
         using difference_type        = ptrdiff_t;
         
+        array_view() = default;
+        
+        template<typename Container,
+                 typename = decltype(std::declval<T *&>() = std::declval<Container&>().data()),
+                 typename = decltype(std::declval<size_t&>() = std::declval<Container&>().size())>
+        array_view(Container &container)
+            : _data(container.data()), _size(container.size()) { }
+        
         array_view(T *data, size_type size)
-        : _data(data), _size(size)
+            : _data(data), _size(size)
         {
-            assert(data != nullptr);
-            assert(size != 0);
+            assert(data != nullptr || size == 0);
         }
         
         array_view(array_view const&) = default;
@@ -234,6 +241,8 @@ namespace bitvector
         array_view &operator=(array_view &&) = default;
         
         size_type size() const { return _size; }
+        
+        bool empty() const { return size() == 0; }
         
         const_pointer data() const { return _data; }
         pointer       data()       { return _data; }

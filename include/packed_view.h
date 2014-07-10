@@ -62,7 +62,7 @@ namespace bitvector
         
     public:
         class reference;
-        using const_reference = reference_base<false>;
+        using const_reference = reference_base<true>;
 
         using iterator               = iterator_t<false>;
         using const_iterator         = iterator_t<true>;
@@ -274,18 +274,18 @@ namespace bitvector
         reference_base(PV &v, size_t begin)
             : _v(v), _begin(begin), _end(begin + 1) { }
         
-        reference_base(reference_base const&r) = default;
-        
-        template<bool C, REQUIRES(not C)>
-        reference_base(reference_base<C> const&r)
-            : _v(r._v), _begin(r._begin), _end(r._end) { }
-        
     protected:
         word_t<W> flag_bitmask() const {
             return (FlagBit & (_end == _begin + 1)) << (_v.width() - 1);
         }
         
     public:
+        reference_base(reference_base const&r) = default;
+        
+        template<bool C, REQUIRES(Const && not C)>
+        reference_base(reference_base<C> const&r)
+            : _v(r._v), _begin(r._begin), _end(r._end) { }
+        
         word_t<W> value() const {
             return _v.get(_begin, _end) & ~flag_bitmask();
         }
