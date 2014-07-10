@@ -25,6 +25,7 @@
 #include <memory>
 #include <type_traits>
 #include <bitset>
+#include <stdexcept>
 
 #include <iostream>
 #include <iomanip>
@@ -171,7 +172,7 @@ namespace bitvector
             
             size_t new_index = index - (child == 0 ? 0 : n.size(child - 1));
             
-            assert(new_index < new_size);
+            assert(new_index <= new_size);
             
             return { child, new_size, new_index };
         }
@@ -179,6 +180,9 @@ namespace bitvector
         bool access(size_t index, node_ptr n, size_t h, size_t size)
         {
             assert(h > 0);
+            
+            if(index > size)
+                throw std::out_of_range("Index out of bounds");
             
             size_t child, new_size, new_index;
             std::tie(child, new_size, new_index) = locate_subtree(index, n, size);
@@ -198,22 +202,48 @@ namespace bitvector
             
             if(h == 1) // We'll reach a leaf
             {
-                // 1. Check if we need a split
-                if(n.size(child) == W) // We need a split
+                // 1. Check if we need a split and/or a redistribution
+                if(n.size(child) == W) // We need a redistribution
                 {
-                    // split()...
+                    // We have to find a number of leaves adjacent
+                    // to this one with the least number of total bits
+                    size_t begin = child <= (_leaves_buffer - 1) ? 0 :
+                                   child - (_leaves_buffer - 1);
+                    size_t end = begin + _leaves_buffer;
+                    
+                    size_t count = 0;
+                    for(size_t i = begin; i < end; i++)
+                        count += n.size(i);
+                    
+                    word_t<W> first = n.size(begin);
+                    size_t mi = begin;
+                    size_t mcount = count;
+                    for(;end < degree(); ++begin, ++end)
+                    {
+                        size_t old = count;
+                        count = count - first + n.size(end - 1);
+                        if(count < old) {
+                            mi = begin;
+                            mcount = count;
+                        }
+                    }
                 }
                 
                 // 2. Insert the bit
-                size_t &leaf = n.leaf(child);
+                word_t<W> &leaf = n.leaf(child);
                 leaf = insert_bit(leaf, new_index, bit);
+                _size += 1;
             }
             else // We'll have another node
             {
                 // 1. Check if we need a split
-                size_t nkeys = locate_subtree(size - 1, n, size);
-                if(nkeys == degree())
+                // FIXME: we have to look at the child node where we're going,
+                //        not the current one
+                size_t nkeys = std::get<0>(locate_subtree(size - 1, n, size));
+                if(nkeys == degree()) // We need a split
                 {
+                    std::cout << "I don't know how to split a leaf!";
+                    return;
                     // split()...
                 }
                 

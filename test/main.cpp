@@ -17,6 +17,7 @@
 #include "bitvector.h"
 
 #include <vector>
+#include <numeric>
 
 using namespace bitvector;
 
@@ -76,11 +77,12 @@ int main()
     
     //    v.info();
     
-    std::cout << std::boolalpha << v.access(0) << "\n";
+    v.insert(0, true);
+    v.insert(1, false);
+    v.insert(2, true);
+    std::cout << v.access(2) << v.access(1) << v.access(0) << "\n";
     
     //test_packed_array();
-    
-    
     
     return 0;
 }
