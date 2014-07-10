@@ -100,7 +100,8 @@ namespace bitvector
         return details::word_t<sizeof(T) * 8>::popcount(value);
     }
     
-    template<typename T>
+    template<typename T,
+             REQUIRES(std::is_integral<T>::value)>
     std::string to_binary(T val, size_t sep = 8)
     {
         std::string s;

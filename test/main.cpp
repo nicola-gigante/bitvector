@@ -70,12 +70,7 @@ int main()
 {
     bitvector<64> v(10000);
     
-    v.root().size(0) = 2;
-    v.root().size(1) = 4;
-    v.root().size(2) = 8;
-    v.root().size(3) = 16;
-    
-    //    v.info();
+    //v.info();
     
     v.insert(0, true);
     v.insert(1, false);

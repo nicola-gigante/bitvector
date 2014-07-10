@@ -85,6 +85,11 @@ namespace bitvector
             assert(size > 0);
             assert(width <= W);
             assert(width * size <= W * _container.size());
+            
+            // This seems redundant but it isn't. It's needed to setup the
+            // flag bits when FlagBit is enabled
+            if(FlagBit == flag_bit)
+                std::fill(begin(), end(), 0);
         }
         
         packed_view(size_t width, size_t size)
@@ -151,6 +156,11 @@ namespace bitvector
             
             container().reserve(length);
             container().resize(length);
+            
+            // This seems redundant but it isn't. It's needed to setup the
+            // flag bits when FlagBit is enabled
+            if(FlagBit == flag_bit)
+                std::fill(begin(), end(), 0);
         }
         
         const_reference operator[](size_t i) const { return at(i); }
