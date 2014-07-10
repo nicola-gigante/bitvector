@@ -68,9 +68,9 @@ void test_insert_bit()
 
 int main()
 {
-    bitvector<64> v(10000);
+    bitvector<64> v(100000);
     
-    //v.info();
+    v.info();
     
     v.insert(0, true);
     v.insert(1, false);

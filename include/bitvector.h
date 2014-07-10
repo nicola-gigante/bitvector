@@ -110,7 +110,7 @@ namespace bitvector
                       << "b = " << _leaves_buffer << "\n"
                       << "b' = " << _nodes_buffer << "\n"
                       << "Number of nodes = " << _sizes.size() / _degree << "\n"
-                      << "Number of leaves = " << _leaves.size() << "\n"
+                      << "Number of leaves = " << _leaves.capacity() << "\n"
                       << "Index mask:\n"
                       << to_binary(_index_mask, _counter_width) << "\n"
                       << "Size flag mask:\n"
@@ -156,13 +156,14 @@ namespace bitvector
             if(index > t.size())
                 throw std::out_of_range("Index out of bounds");
             
-            size_t child, new_index;
-            std::tie(child, new_index) = t.find(index);
-            
-            if(t.height() == 1) // We'll reach a leaf
-                return get_bit(t.child(child).leaf(), new_index);
-            else // We'll have another node
+            if(t.is_leaf()) // We have a leaf
+                return get_bit(t.leaf(), index);
+            else { // We're in a node
+                size_t child, new_index;
+                std::tie(child, new_index) = t.find(index);
+                
                 return access(t.child(child), new_index);
+            }
         }
         
         void insert(subtree_ref t, size_t index, bool bit)
@@ -186,6 +187,9 @@ namespace bitvector
                     
                     // redistribute
                     redistribute_bits(t, begin, end, count);
+                    
+                    // Search again where to insert the bit
+                    std::tie(child, new_index) = t.find(index);
                 }
                 
                 // 2. Update counters
@@ -238,7 +242,7 @@ namespace bitvector
             size_t maxfreebits = 0;
             std::pair<size_t, size_t> window;
             
-            while(end < degree())
+            while(end - begin < _leaves_buffer && end < degree())
             {
                 ++end;
                 freebits += W - t.sizes(end - 1);
@@ -261,17 +265,33 @@ namespace bitvector
             return { window.first, window.second, count };
         }
         
-        void redistribute_bits(subtree_ref n, size_t begin, size_t end, size_t count)
+        void redistribute_bits(subtree_ref t, size_t begin, size_t end, size_t count)
         {
-            assert(end - begin == _leaves_buffer);
+            size_t b = end - begin;
+            size_t bits_per_leaf = count / b;
+            
+            assert(b == _leaves_buffer || b == _leaves_buffer + 1);
             
             std::vector<word_t<W>> leaves_bits(_leaves_buffer);
             packed_view<W> view(1, count, leaves_bits);
             
+            for(size_t i = begin, p = 0; i < end; i++, p += t.size())
+                view(p, p + t.size()) = t.child(i).leaf();
+            
             size_t p = 0;
-            for(size_t i = begin; i < end; i++) {
-                // TODO: Implement
+            for(size_t i = begin; i < end; i++)
+            {
+                size_t n = std::min(count, bits_per_leaf);
+                
+                t.child(i).leaf() = view(p, p + n);
+                if(i < degree())
+                    t.sizes(i) = p + n;
+                
+                count -= n;
+                p += n;
             }
+            
+            assert(count == 0);
         }
         
     private:
@@ -369,21 +389,47 @@ namespace bitvector
         // Convenience shorthand for the degree of the subvector
         size_t degree() const { return _vector.degree(); }
         
+        
         // This method creates a subtree_ref for the child at index k,
         // computing its size and its height. It's valid only if the height
         // is greater than 1 (so our children are internal nodes, not leaves).
         // For accessing the leaves of level 1 nodes, use the leaf() method
         subtree_ref_t child(size_t k) const
         {
-            assert(k <= degree());
-            
-            size_t s = k == 0        ? sizes(k) :
-                       k == degree() ? size() :
-                                       sizes(k) - sizes(k - 1);
-            
-            return { _vector, pointers(k), height() - 1, s };
+            return child(k, std::integral_constant<bool, Const>());
         }
         
+    private:
+        // Helper functions for the child() method
+        subtree_ref_t child(size_t k, std::true_type /* const */) const
+        {
+            assert(k <= degree());
+            assert(pointers(k) != 0);
+            
+            return { _vector, pointers(k), height() - 1, subtree_size(k) };
+        }
+        
+        // The non-const version allocates the node or the leaf if the
+        // pointer at index k was null
+        subtree_ref_t child(size_t k, std::false_type /* not const*/) const
+        {
+            assert(k <= degree());
+            
+            if(pointers(k) == 0)
+                pointers(k) = height() == 1 ? _vector.alloc_leaf()
+                                            : _vector.alloc_node();
+            
+            return child(k, std::true_type());
+        }
+        
+        size_t subtree_size(size_t k) const
+        {
+            return k == 0        ? sizes(k) :
+            k == degree() ? size() - sizes(k - 1) :
+            sizes(k) - sizes(k - 1);
+        }
+        
+    public:
         // Access to the value of the leaf, if this subtree_ref refers to a leaf
         leaf_reference leaf() const
         {
