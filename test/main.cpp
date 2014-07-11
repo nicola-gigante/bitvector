@@ -70,12 +70,32 @@ int main()
 {
     bitvector<64> v(100000);
     
-    v.info();
+    //v.info();
     
-    v.insert(0, true);
-    v.insert(1, false);
-    v.insert(2, true);
-    std::cout << v.access(2) << v.access(1) << v.access(0) << "\n";
+    for(size_t i = 0; i < 120; i++)
+    {
+        v.insert(i, true);
+    }
+   
+    std::cout << "Leaves:\n";
+    for(size_t i = 0; i < v.degree(); i++) {
+        std::cout << "[" << i << "] = " << v.root().child(i).size() << "\n";
+        std::cout << to_binary(v.root().child(i).leaf()) << "\n";
+    }
+    
+    std::cout << "\nbit n. 36: " << v.access(36) << "\n";
+    
+    std::cout << "\nContents:\n";
+    for(size_t i = 0; i < 120; i++)
+    {
+        if(i && i % 8 == 0)
+            std::cout << ' ';
+        if(i && i % 40 == 0)
+            std::cout << "\n";
+        std::cout << v.access(i);
+    }
+    
+    std::cout << "\n";
     
     //test_packed_array();
     

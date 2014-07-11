@@ -126,7 +126,7 @@ namespace bitvector
         }
         
         const_reference at(size_t begin, size_t end) const {
-            assert(begin < size());
+            assert(begin == end || begin < size());
             assert(end <= size());
             assert(_width * (end - begin) <= W);
             
@@ -134,7 +134,7 @@ namespace bitvector
         }
         
         reference at(size_t begin, size_t end) {
-            assert(begin < size());
+            assert(begin == end || begin < size());
             assert(end <= size());
             assert(_width * (end - begin) <= W);
             
@@ -222,8 +222,11 @@ namespace bitvector
         
         word_t<W> get(size_t begin, size_t end) const
         {
-            assert(begin < _size);
+            assert(begin == end || begin < _size);
             assert(end <= _size);
+            
+            if(begin == end)
+                return 0;
             
             size_t i, l, llen, hlen;
             std::tie(i, l, llen, hlen) = locate(begin, end);
@@ -241,8 +244,11 @@ namespace bitvector
         
         void set(size_t begin, size_t end, word_t<W> value)
         {
-            assert(begin < _size);
+            assert(begin == end || begin < _size);
             assert(end <= _size);
+            
+            if(begin == end)
+                return;
             
             size_t i, l, llen, hlen;
             std::tie(i, l, llen, hlen) = locate(begin, end);

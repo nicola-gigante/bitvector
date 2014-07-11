@@ -123,15 +123,15 @@ namespace bitvector
         
         size_t counter_width() const { return _counter_width; }
         
-        subtree_ref       root()       { return { *this, _root, _height, _size }; }
-        subtree_const_ref root() const { return { *this, _root, _height, _size }; }
-        
         bool empty() const { return _size == 0; }
         bool full() const { return _size == _capacity; }
         
         bool access(size_t index) const { return access(root(), index); }
         
         void insert(size_t index, bool bit) { insert(root(), index, bit); }
+        
+        subtree_ref       root()       { return { *this, _root, _height, _size }; }
+        subtree_const_ref root() const { return { *this, _root, _height, _size }; }
         
     private:
         // This "allocation" is only to take the first free node and return it
@@ -153,7 +153,7 @@ namespace bitvector
         
         bool access(subtree_const_ref t, size_t index) const
         {
-            if(index > t.size())
+            if(index >= t.size())
                 throw std::out_of_range("Index out of bounds");
             
             if(t.is_leaf()) // We have a leaf
@@ -169,7 +169,7 @@ namespace bitvector
         void insert(subtree_ref t, size_t index, bool bit)
         {
             size_t child, new_index;
-            std::tie(child, new_index) = t.find(index);
+            std::tie(child, new_index) = t.find_insert_point(index);
             
             if(t.height() == 1) // We'll reach a leaf
             {
@@ -183,13 +183,14 @@ namespace bitvector
                     // Check if we need to split or only to redistribute
                     if(count >= _leaves_buffer * (W - _leaves_buffer)) {
                         // split...
+                        assert(false && "Unimplemented");
                     }
                     
                     // redistribute
                     redistribute_bits(t, begin, end, count);
                     
                     // Search again where to insert the bit
-                    std::tie(child, new_index) = t.find(index);
+                    std::tie(child, new_index) = t.find_insert_point(index);
                 }
                 
                 // 2. Update counters
@@ -206,12 +207,12 @@ namespace bitvector
                 // 1. Check if we need a split
                 // FIXME: we have to look at the child node where we're going,
                 //        not the current one
-                size_t nkeys = std::get<0>(t.find(t.size() - 1));
+                // FIXME: Check nkeys
+                size_t nkeys = std::get<0>(t.find_insert_point(t.size() - 1));
                 if(nkeys == degree()) // We need a split
                 {
-                    std::cout << "I don't know how to split a leaf!";
-                    return;
                     // split()...
+                    assert(false && "Unimplemented");
                 }
                 
                 // 2. Update counters
@@ -236,25 +237,29 @@ namespace bitvector
         find_adjacent_leaves(subtree_ref t, size_t child)
         {
             size_t begin = child > _leaves_buffer ? child - _leaves_buffer - 1 : 0;
-            size_t end = begin;
+            size_t end = std::min(begin + _leaves_buffer, degree() + 1);
             
             size_t freebits = 0;
             size_t maxfreebits = 0;
-            std::pair<size_t, size_t> window;
+            std::pair<size_t, size_t> window = { begin, end };
             
-            while(end - begin < _leaves_buffer && end < degree())
+            // Sum for the initial window
+            for(size_t i = begin; i < end; i++)
+                freebits += W - t.child(i).size();
+            
+            maxfreebits = freebits;
+            
+            while(begin < child && end < degree() + 1)
             {
-                ++end;
-                freebits += W - t.sizes(end - 1);
+                freebits = freebits - (W - t.child(begin).size())
+                                    + (W - t.child(end - 1).size());
                 
-                if(end - begin == _leaves_buffer) {
-                    freebits -= W - t.sizes(begin);
-                    ++begin;
-                }
+                begin++;
+                end++;
                 
                 if(freebits > maxfreebits) {
-                    maxfreebits = freebits;
                     window = { begin, end };
+                    maxfreebits = freebits;
                 }
             }
             
@@ -268,15 +273,15 @@ namespace bitvector
         void redistribute_bits(subtree_ref t, size_t begin, size_t end, size_t count)
         {
             size_t b = end - begin;
-            size_t bits_per_leaf = count / b;
+            size_t bits_per_leaf = ceil(float(count) / b);
             
             assert(b == _leaves_buffer || b == _leaves_buffer + 1);
             
             std::vector<word_t<W>> leaves_bits(_leaves_buffer);
             packed_view<W> view(1, count, leaves_bits);
             
-            for(size_t i = begin, p = 0; i < end; i++, p += t.size())
-                view(p, p + t.size()) = t.child(i).leaf();
+            for(size_t i = begin, p = 0; i < end; p += t.child(i).size(), i++)
+                view(p, p + t.child(i).size()) = t.child(i).leaf();
             
             size_t p = 0;
             for(size_t i = begin; i < end; i++)
@@ -389,7 +394,6 @@ namespace bitvector
         // Convenience shorthand for the degree of the subvector
         size_t degree() const { return _vector.degree(); }
         
-        
         // This method creates a subtree_ref for the child at index k,
         // computing its size and its height. It's valid only if the height
         // is greater than 1 (so our children are internal nodes, not leaves).
@@ -437,19 +441,46 @@ namespace bitvector
             return _vector._leaves[_index];
         }
         
-        // Finds the bit at the given index into the subtree
-        // It returns the index of the subtree where the index can be found,
-        // and the new index relative to the subtree.
+        // Finds the subtree where the bit at the given index can be inserted.
+        // The position found by this function is suitable for insertion,
+        // if you need lookup, use find().
+        //
+        // The returned pair contains:
+        //  - The index of the subtree
+        //  - The new index, relative to the subtree, where to insert the bit
         std::pair<size_t, size_t>
-        find(size_t index) const
+        find_insert_point(size_t index) const
         {
             assert(is_node());
             
             size_t child = degree() -
-                           popcount(_vector.size_flag_mask() &
-                                    (sizes() - _vector.index_mask() * word_t<W>(index)));
+            popcount(_vector.size_flag_mask() &
+                     (sizes() - _vector.index_mask() * word_t<W>(index)));
             
             size_t new_index = index - (child == 0 ? 0 : sizes(child - 1));
+            
+            //assert(new_index < this->child(child).size());
+            
+            return { child, new_index };
+        }
+        
+        // Finds the subtree where the bit at the given index is located.
+        //
+        // The returned pair contains:
+        //  - The index of the subtree
+        //  - The new index, relative to the subtree, where to find the bit
+        std::pair<size_t, size_t>
+        find(size_t index) const
+        {
+            size_t child, new_index;
+            std::tie(child, new_index) = find_insert_point(index);
+            
+            if(new_index == this->child(child).size()) {
+                child += 1;
+                new_index = 0;
+            }
+            
+            assert(child < degree() + 1);
             
             return { child, new_index };
         }
@@ -492,7 +523,7 @@ namespace bitvector
         reference pointers(size_t begin, size_t end) const
         {
             assert(is_node());
-            assert(begin < degree());
+            assert(begin == end || begin < degree() + 1);
             assert(end <= degree() + 1);
             return _vector._pointers(_index * (degree() + 1) + begin,
                                  _index * (degree() + 1) + end);
