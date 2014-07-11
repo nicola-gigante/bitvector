@@ -60,7 +60,7 @@ namespace bitvector
             
             _counter_width = ceil(log2(_capacity)) + 1;
             
-            _degree = W / _counter_width;
+            _degree = W / counter_width();
             
             _leaves_buffer = min(max(size_t(ceil(sqrt(W)) - 1), size_t(1)),
                                  _degree);
@@ -86,14 +86,14 @@ namespace bitvector
             
             // Compute masks for bit operations
             for(size_t i = 0; i < _degree; i++) {
-                _index_mask <<= _counter_width;
+                _index_mask <<= counter_width();
                 _index_mask |= 1;
             }
             
             // Allocate space for nodes and leaves
-            _sizes.resize(_counter_width, nodes_count * _degree);
-            _ranks.resize(_counter_width, nodes_count * _degree);
-            _pointers.resize(_counter_width, nodes_count * (_degree + 1));
+            _sizes.resize(counter_width(), nodes_count * _degree);
+            _ranks.resize(counter_width(), nodes_count * _degree);
+            _pointers.resize(pointer_width(), nodes_count * (_degree + 1));
             
             _leaves.reserve(leaves_count);
             
@@ -105,16 +105,16 @@ namespace bitvector
         void info() const {
             std::cout << "Word width = " << W << " bits\n"
                       << "Capacity = " << _capacity << " bits\n"
-                      << "Counter width = " << _counter_width << " bits\n"
+                      << "Size counter width = " << counter_width() << " bits\n"
                       << "Degree = " << _degree << "\n"
                       << "b = " << _leaves_buffer << "\n"
                       << "b' = " << _nodes_buffer << "\n"
                       << "Number of nodes = " << _sizes.size() / _degree << "\n"
                       << "Number of leaves = " << _leaves.capacity() << "\n"
                       << "Index mask:\n"
-                      << to_binary(_index_mask, _counter_width) << "\n"
+                      << to_binary(_index_mask, counter_width()) << "\n"
                       << "Size flag mask:\n"
-                      << to_binary(size_flag_mask(), _counter_width) << "\n";
+                      << to_binary(size_flag_mask(), counter_width()) << "\n";
         }
         
         size_t capacity() const { return _capacity; }
@@ -122,6 +122,7 @@ namespace bitvector
         size_t degree() const { return _degree; }
         
         size_t counter_width() const { return _counter_width; }
+        size_t pointer_width() const { return _counter_width; }
         
         bool empty() const { return _size == 0; }
         bool full() const { return _size == _capacity; }
@@ -148,7 +149,7 @@ namespace bitvector
         word_t<W> index_mask() const { return _index_mask; }
         
         word_t<W> size_flag_mask() const {
-            return _index_mask << (_counter_width - 1);
+            return _index_mask << (counter_width() - 1);
         }
         
         bool access(subtree_const_ref t, size_t index) const
@@ -171,6 +172,14 @@ namespace bitvector
             size_t child, new_index;
             std::tie(child, new_index) = t.find_insert_point(index);
             
+            // We may have a full root node
+            if(t.height() == _height && t.nkeys() == degree())
+            {
+                // split the root node
+                assert(false && "Unimplemented");
+            }
+            
+            // Then go ahead
             if(t.height() == 1) // We'll reach a leaf
             {
                 // 1. Check if we need a split and/or a redistribution
@@ -182,8 +191,10 @@ namespace bitvector
                     
                     // Check if we need to split or only to redistribute
                     if(count >= _leaves_buffer * (W - _leaves_buffer)) {
-                        // split...
-                        assert(false && "Unimplemented");
+                        // We need to split. The node should not be full
+                        size_t nkeys = t.nkeys();
+                        assert(nkeys < degree());
+                        t.insert_child(end++, alloc_leaf());
                     }
                     
                     // redistribute
@@ -195,7 +206,7 @@ namespace bitvector
                 
                 // 2. Update counters
                 t.sizes(child, degree()) += index_mask();
-                t.ranks(child, degree()) += bit;
+                t.ranks(child, degree()) += index_mask() * bit;
                 
                 // 3. Insert the bit
                 word_t<W> &leaf = t.child(child).leaf();
@@ -217,7 +228,7 @@ namespace bitvector
                 
                 // 2. Update counters
                 t.sizes(child, degree()) += index_mask();
-                t.ranks(child, degree()) += bit;
+                t.ranks(child, degree()) += index_mask() * bit;
                 
                 // 3. Continue the traversal
                 insert(t.child(child), new_index, bit);
@@ -246,9 +257,9 @@ namespace bitvector
             // Sum for the initial window
             for(size_t i = begin; i < end; i++)
                 freebits += W - t.child(i).size();
-            
             maxfreebits = freebits;
             
+            // Slide the window
             while(begin < child && end < degree() + 1)
             {
                 freebits = freebits - (W - t.child(begin).size())
@@ -403,6 +414,24 @@ namespace bitvector
             return child(k, std::integral_constant<bool, Const>());
         }
         
+        template<bool C = Const, REQUIRES(not C)>
+        void insert_child(size_t k, word_t<W> p) const
+        {
+            assert(is_node());
+            assert(k <= degree());
+            assert(nkeys() < degree());
+            
+            size_t s = sizes(k);
+            size_t r = ranks(k);
+            
+            sizes(k, degree()) >>= _vector.counter_width();
+            ranks(k, degree()) >>= _vector.counter_width();
+            pointers(k + 1, degree() + 1) >>= _vector.pointer_width();
+            
+            sizes(k) = s;
+            ranks(k) = r;
+        }
+        
     private:
         // Helper functions for the child() method
         subtree_ref_t child(size_t k, std::true_type /* const */) const
@@ -483,6 +512,12 @@ namespace bitvector
             assert(child < degree() + 1);
             
             return { child, new_index };
+        }
+        
+        // Number of used keys inside the node
+        size_t nkeys() const {
+            return std::min(std::get<0>(find_insert_point(size() - 1)) + 1,
+                            degree());
         }
         
         // Word composed by the size fields in the interval [begin, end)

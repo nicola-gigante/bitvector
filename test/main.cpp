@@ -72,7 +72,7 @@ int main()
     
     //v.info();
     
-    for(size_t i = 0; i < 120; i++)
+    for(size_t i = 0; i < 187; i++)
     {
         v.insert(i, true);
     }
@@ -83,10 +83,10 @@ int main()
         std::cout << to_binary(v.root().child(i).leaf()) << "\n";
     }
     
-    std::cout << "\nbit n. 36: " << v.access(36) << "\n";
+    std::cout << "\nNumber of keys in root:\n" << v.root().nkeys() << "\n";
     
     std::cout << "\nContents:\n";
-    for(size_t i = 0; i < 120; i++)
+    for(size_t i = 0; i < 187; i++)
     {
         if(i && i % 8 == 0)
             std::cout << ' ';
