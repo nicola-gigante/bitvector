@@ -91,7 +91,7 @@ namespace bitvector
             assert(_pointer_width * (_degree + 1) <= W);
             
             // Compute masks for bit operations
-            for(size_t i = 0; i < _degree; i++) {
+            for(size_t i = 0; i < _degree; ++i) {
                 _index_mask <<= counter_width();
                 _index_mask |= 1;
             }
@@ -286,7 +286,7 @@ namespace bitvector
             std::pair<size_t, size_t> window = { begin, end };
             
             // Sum for the initial window
-            for(size_t i = begin; i < end; i++)
+            for(size_t i = begin; i < end; ++i)
                 freebits += W - t.child(i).size();
             maxfreebits = freebits;
             
@@ -296,8 +296,8 @@ namespace bitvector
                 freebits = freebits - (W - t.child(begin).size())
                                     + (W - t.child(end - 1).size());
                 
-                begin++;
-                end++;
+                begin += 1;
+                end += 1;
                 
                 if(freebits > maxfreebits) {
                     window = { begin, end };
@@ -315,20 +315,25 @@ namespace bitvector
         void redistribute_bits(subtree_ref t, size_t begin, size_t end, size_t count)
         {
             size_t b = end - begin;
-            size_t bits_per_leaf = ceil(float(count) / b);
+            size_t bits_per_leaf = count / b;
+            size_t rem           = count % b;
             
             assert(b == _leaves_buffer || b == _leaves_buffer + 1);
             
             std::vector<word_t<W>> leaves_bits(_leaves_buffer);
             packed_view<W> view(1, count, leaves_bits);
             
-            for(size_t i = begin, p = 0; i < end; p += t.child(i).size(), i++)
+            for(size_t i = begin, p = 0; i < end; p += t.child(i).size(), ++i)
                 view(p, p + t.child(i).size()) = t.child(i).leaf();
             
             size_t p = 0;
-            for(size_t i = begin; i < end; i++)
+            for(size_t i = begin; i < end; ++i)
             {
-                size_t n = std::min(count, bits_per_leaf);
+                size_t n = bits_per_leaf;
+                if(rem) {
+                    n += 1;
+                    rem -= 1;
+                }
                 
                 t.child(i).leaf() = view(p, p + n);
                 if(i < degree())

@@ -72,7 +72,9 @@ int main()
     
     //v.info();
     
-    for(size_t i = 0; i < 187; i++)
+    size_t nbits = 65;
+    
+    for(size_t i = 0; i < nbits; i++)
     {
         v.insert(i, true);
     }
@@ -86,7 +88,7 @@ int main()
     std::cout << "\nNumber of keys in root:\n" << v.root().nkeys() << "\n";
     
     std::cout << "\nContents:\n";
-    for(size_t i = 0; i < 187; i++)
+    for(size_t i = 0; i < nbits; i++)
     {
         if(i && i % 8 == 0)
             std::cout << ' ';
