@@ -221,14 +221,13 @@ namespace bitvector
                 {
                     // The leaf is full, we need a redistribution
                     size_t begin, end, count;
-                    std::tie(begin, end, count) = find_adjacent_leaves(t, child);
+                    std::tie(begin, end, count) = find_adjacent_children(t, child);
                     
                     // Check if we need to split or only to redistribute
                     if(count >= _leaves_buffer * (W - _leaves_buffer)) {
                         // We need to split. The node should not be full
-                        size_t nkeys = t.nkeys();
-                        assert(nkeys < degree());
-                        t.insert_child(end++, alloc_leaf());
+                        assert(t.nkeys() < degree());
+                        t.insert_child(end++);
                     }
                     
                     // redistribute
@@ -250,11 +249,27 @@ namespace bitvector
             }
             else // We'll have another node
             {
-                // 1. Check if we need a split
-                if(t.child(child).nkeys() == degree()) // The node is full
+                // 1. Check if we need a split and/or a redistribution of keys
+                if(t.child(child).nkeys() == degree())
                 {
-                    // split()...
-                    assert(false && "Unimplemented");
+                    // The node is full, we need a redistribution
+                    size_t begin, end, count;
+                    std::tie(begin, end, count) = find_adjacent_children(t, child);
+                    
+                    // FIXME: How to decide if we need to split?
+                    //        Let's just always split for now
+                    //if(count >= _nodes_buffer * (degree() + 1 - _nodes_buffer)) {
+                    if(true) {
+                        // We need to split. The node should not be full
+                        assert(t.nkeys() < degree());
+                        t.insert_child(end++);
+                    }
+                    
+                    // redistribute
+                    redistribute_keys(t, begin, end, count);
+                    
+                    // Search again where to insert the bit
+                    std::tie(child, new_index) = t.find_insert_point(index);
                 }
                 
                 // 2. Update counters
@@ -268,50 +283,59 @@ namespace bitvector
         
         // Utility functions for insert()
         
-        // Find the group of leaves adjacent to 'child',
-        // with the maximum number of free bits.
+        // Find the group of children adjacent to 'child',
+        // with the maximum number of free slots (bits or keys, it depends).
         // It returns a tuple with:
         //
-        // - The begin and the end of the interval of the leaves
-        // - The count of bits contained in total in the found leaves
-        //   I repeat: the number of bits, not the number of free bits
+        // - The begin and the end of the interval selected interval of children
+        // - The count of slots contained in total in the found leaves
+        //   I repeat: the number of slots, not the number of free slots
         std::tuple<size_t, size_t, size_t>
-        find_adjacent_leaves(subtree_ref t, size_t child)
+        find_adjacent_children(subtree_ref t, size_t child)
         {
-            size_t begin = child > _leaves_buffer ? child - _leaves_buffer - 1 : 0;
-            size_t end = std::min(begin + _leaves_buffer, degree() + 1);
+            const bool is_leaf = t.child(child).is_leaf();
+            const size_t buffer = is_leaf ? _leaves_buffer : _nodes_buffer;
+            const size_t max_count = is_leaf ? W : degree();
+            const auto count = [&](size_t i) {
+                return is_leaf ? W - t.child(i).size()
+                               : degree() - t.child(i).nkeys();
+            };
             
-            size_t freebits = 0;
-            size_t maxfreebits = 0;
+            size_t begin = child > buffer ? child - buffer - 1 : 0;
+            size_t end = std::min(begin + buffer, degree() + 1);
+            
+            size_t freeslots = 0;
+            size_t maxfreeslots = 0;
             std::pair<size_t, size_t> window = { begin, end };
             
             // Sum for the initial window
             for(size_t i = begin; i < end; ++i)
-                freebits += W - t.child(i).size();
-            maxfreebits = freebits;
+                freeslots += count(i);
+            maxfreeslots = freeslots;
             
             // Slide the window
             while(begin < child && end < degree() + 1)
             {
-                freebits = freebits - (W - t.child(begin).size())
-                                    + (W - t.child(end - 1).size());
+                freeslots = freeslots - count(begin) + count(end - 1);
                 
                 begin += 1;
                 end += 1;
                 
-                if(freebits > maxfreebits) {
+                if(freeslots > maxfreeslots) {
                     window = { begin, end };
-                    maxfreebits = freebits;
+                    maxfreeslots = freeslots;
                 }
             }
             
-            // Reverse the count of free bits to get the total number of bits
-            size_t count = W * _leaves_buffer - maxfreebits;
+            // Reverse the count of free slots to get the total number of bits
+            size_t total = max_count * buffer - maxfreeslots;
             
             assert(begin <= child && child < end);
-            return { window.first, window.second, count };
+            return { window.first, window.second, total };
         }
         
+        // FIXME: rewrite using a temporary space of two words instead
+        //        of the whole buffer, thus avoiding the dynamic allocation
         void redistribute_bits(subtree_ref t, size_t begin, size_t end, size_t count)
         {
             size_t b = end - begin;
@@ -338,6 +362,59 @@ namespace bitvector
                 t.child(i).leaf() = view(p, p + n);
                 if(i < degree())
                     t.sizes(i) = p + n;
+                
+                count -= n;
+                p += n;
+            }
+            
+            assert(count == 0);
+        }
+        
+        // FIXME: rewrite using a temporary space of two words instead
+        //        of the whole buffer, thus avoiding the dynamic allocation
+        void redistribute_keys(subtree_ref t, size_t begin, size_t end, size_t count)
+        {
+            size_t b = end - begin;
+            size_t keys_per_node = count / b;
+            size_t rem           = count % b;
+            
+            assert(b == _nodes_buffer || b == _nodes_buffer + 1);
+            
+            struct pointer {
+                size_t size;
+                size_t rank;
+                size_t ptr;
+            };
+            
+            std::vector<pointer> pointers(_nodes_buffer * (degree() + 1));
+        
+            for(size_t i = begin; i != end; ++i)
+                for(size_t c = 0; c < degree() + 1; ++c)
+                    pointers.push_back({ t.child(i).child(c).size(),
+                                         t.child(i).child(c).rank(),
+                                         t.child(i).pointers(c) });
+            
+            size_t p = 0;
+            for(size_t i = begin; i != end; ++i)
+            {
+                size_t n = keys_per_node;
+                if(rem) {
+                    n += 1;
+                    rem -= 1;
+                }
+                
+                // Clear the node
+                t.child(i).sizes() = size_flag_mask();
+                t.child(i).ranks() = 0;
+                
+                for(size_t j = 0; j < n; ++j)
+                {
+                    t.child(i).pointers(j) = pointers[p + j].ptr;
+                    t.child(i).sizes(j, degree()) +=
+                                     index_mask() * pointers[p + j].size;
+                    t.child(i).ranks(j, degree()) +=
+                                     index_mask() * pointers[p + j].rank;
+                }
                 
                 count -= n;
                 p += n;
@@ -491,7 +568,7 @@ namespace bitvector
         }
         
         template<bool C = Const, REQUIRES(not C)>
-        void insert_child(size_t k, word_t<W> p) const
+        void insert_child(size_t k) const
         {
             assert(is_node());
             assert(k <= degree());
@@ -506,6 +583,8 @@ namespace bitvector
             
             sizes(k) = s;
             ranks(k) = r;
+            pointers(k) = _height == 1 ? _vector.alloc_leaf()
+                                       : _vector.alloc_node();
         }
         
     private:
