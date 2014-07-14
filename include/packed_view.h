@@ -287,6 +287,7 @@ namespace bitvector
         
     public:
         reference_base(reference_base const&r) = default;
+        reference_base &operator=(reference_base const&) = delete;
         
         template<bool C, REQUIRES(Const && not C)>
         reference_base(reference_base<C> const&r)
@@ -317,6 +318,21 @@ namespace bitvector
         using Base::Base;
         
     public:
+        reference(reference const&) = default;
+        
+        reference &operator=(reference const&r)
+        {
+            *this = r.value();
+            return *this;
+        }
+        
+        template<bool C>
+        reference &operator=(reference_base<C> const&r)
+        {
+            *this = r.value();
+            return *this;
+        }
+        
         reference &operator=(word_t<W> v)
         {
             v = v | Base::flag_bitmask();

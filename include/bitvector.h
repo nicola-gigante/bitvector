@@ -84,6 +84,12 @@ namespace bitvector
                 nodes_count += level_count;
             } while(level_count > 1);
             
+            // Width of pointers
+            _pointer_width = ceil(log2(std::max(nodes_count, leaves_count)));
+            
+            assert(_pointer_width <= _counter_width);
+            assert(_pointer_width * (_degree + 1) <= W);
+            
             // Compute masks for bit operations
             for(size_t i = 0; i < _degree; i++) {
                 _index_mask <<= counter_width();
@@ -99,6 +105,7 @@ namespace bitvector
             
             // Setup the initial root node
             _height = 1;
+            alloc_node();
             root().pointers(0) = alloc_leaf();
         }
         
@@ -106,6 +113,7 @@ namespace bitvector
             std::cout << "Word width = " << W << " bits\n"
                       << "Capacity = " << _capacity << " bits\n"
                       << "Size counter width = " << counter_width() << " bits\n"
+                      << "Pointers width = " << pointer_width() << " bits\n"
                       << "Degree = " << _degree << "\n"
                       << "b = " << _leaves_buffer << "\n"
                       << "b' = " << _nodes_buffer << "\n"
@@ -119,10 +127,11 @@ namespace bitvector
         
         size_t capacity() const { return _capacity; }
         size_t size() const { return _size; }
+        size_t rank() const { return _rank; }
         size_t degree() const { return _degree; }
         
         size_t counter_width() const { return _counter_width; }
-        size_t pointer_width() const { return _counter_width; }
+        size_t pointer_width() const { return _pointer_width; }
         
         bool empty() const { return _size == 0; }
         bool full() const { return _size == _capacity; }
@@ -131,8 +140,8 @@ namespace bitvector
         
         void insert(size_t index, bool bit) { insert(root(), index, bit); }
         
-        subtree_ref       root()       { return { *this, _root, _height, _size }; }
-        subtree_const_ref root() const { return { *this, _root, _height, _size }; }
+        subtree_ref       root()       { return { *this, 0, _height, _size, _rank }; }
+        subtree_const_ref root() const { return { *this, 0, _height, _size, _rank }; }
         
     private:
         // This "allocation" is only to take the first free node and return it
@@ -169,20 +178,45 @@ namespace bitvector
         
         void insert(subtree_ref t, size_t index, bool bit)
         {
+            // If we see a full node in this point it must be the root,
+            // otherwise we've violated our invariants.
+            // So, since it's a root and it's full, we prepare the split
+            // by allocating a new node and swapping it with the old root,
+            // thus ensuring the root is always at index zero.
+            // Then we go ahead pretending we started the insertion from the
+            // new root, so we don't duplicate the node splitting code
+            // below
+            if(t.nkeys() == degree())
+            {
+                assert(t.is_root());
+                
+                // Copy the old root into another node
+                subtree_ref old_root = t.copy();
+                
+                // Empty the root and make it point to the old one
+                t.sizes() = size_flag_mask() | (index_mask() * t.size());
+                t.ranks() = index_mask() * t.rank();
+                t.pointers() = 0;
+                t.pointers(0) = old_root.index();
+                
+                // The only point in the algorithm were the height increases
+                ++_height;
+                
+                assert(root().nkeys() == 1);
+                assert(root().child(0).nkeys() == degree());
+                
+                // Pretend we were inserting from the new root
+                return insert(root(), index, bit);
+            }
+            
+            // Find where we have to insert this bit
             size_t child, new_index;
             std::tie(child, new_index) = t.find_insert_point(index);
-            
-            // We may have a full root node
-            if(t.height() == _height && t.nkeys() == degree())
-            {
-                // split the root node
-                assert(false && "Unimplemented");
-            }
             
             // Then go ahead
             if(t.height() == 1) // We'll reach a leaf
             {
-                // 1. Check if we need a split and/or a redistribution
+                // 1. Check if we need a split and/or a redistribution of bits
                 if(t.child(child).size() == W)
                 {
                     // The leaf is full, we need a redistribution
@@ -212,15 +246,12 @@ namespace bitvector
                 word_t<W> &leaf = t.child(child).leaf();
                 leaf = insert_bit(leaf, new_index, bit);
                 _size += 1;
+                _rank += bit;
             }
             else // We'll have another node
             {
                 // 1. Check if we need a split
-                // FIXME: we have to look at the child node where we're going,
-                //        not the current one
-                // FIXME: Check nkeys
-                size_t nkeys = std::get<0>(t.find_insert_point(t.size() - 1));
-                if(nkeys == degree()) // We need a split
+                if(t.child(child).nkeys() == degree()) // The node is full
                 {
                     // split()...
                     assert(false && "Unimplemented");
@@ -318,14 +349,17 @@ namespace bitvector
         // Current number of bits stored in the bitvector
         size_t _size = 0;
         
-        // Index of the root node of the tree
-        size_t _root;
+        // Total rank of the bitvector
+        size_t _rank = 0;
         
         // Height of the tree (distance of the root node from the leaves)
         size_t _height;
         
         // Bit width of the nodes' counters inside nodes' words
         size_t _counter_width;
+        
+        // Bit width of nodes' pointers
+        size_t _pointer_width;
         
         // Number of counters per node, refered as d in the paper
         size_t _degree;
@@ -381,9 +415,14 @@ namespace bitvector
         // Total size (number of bits) of the subtree
         size_t _size = 0;
         
+        // Total rank (number of set bit) of the subtree
+        size_t _rank = 0;
+        
     public:
-        subtree_ref_t(bitvector_t &vector, size_t index, size_t height, size_t size)
-            : _vector(vector), _index(index), _height(height), _size(size) { }
+        subtree_ref_t(bitvector_t &vector, size_t index, size_t height,
+                      size_t size, size_t rank)
+            : _vector(vector), _index(index), _height(height),
+              _size(size), _rank(rank) { }
         
         subtree_ref_t(subtree_ref_t const&) = default;
         subtree_ref_t &operator=(subtree_ref_t const&) = default;
@@ -395,15 +434,47 @@ namespace bitvector
         // Height of the subtree
         size_t height() const { return _height; }
         
-        // Pair of methods to know if the subtree is a leaf or not
-        bool is_leaf() const { return _height == 0; }
-        bool is_node() const { return _height > 0; }
+        // Index of the node/leaf in the bitvector internal data array
+        size_t index() const { return _index; }
         
         // Size of the subtree
         size_t size() const { return _size; }
         
+        // Rank of the subtree
+        size_t rank() const { return _rank; }
+        
         // Convenience shorthand for the degree of the subvector
         size_t degree() const { return _vector.degree(); }
+        
+        // Pair of methods to know if the subtree is a leaf or not
+        bool is_leaf() const { return _height == 0; }
+        bool is_node() const { return _height > 0; }
+        
+        // The root node is at index zero and top height
+        bool is_root() const {
+            assert(_index != 0 || _height == _vector._height);
+            assert(_height != _vector._height || _index == 0);
+            
+            return _index == 0;
+        }
+        
+        template<bool C = Const, REQUIRES(not C)>
+        subtree_ref copy() const
+        {
+            subtree_ref r = *this;
+            if(is_node()) {
+                r._index = _vector.alloc_node();
+            
+                r.sizes()    = sizes();
+                r.ranks()    = ranks();
+                r.pointers() = pointers();
+            } else {
+                r._index = _vector.alloc_leaf();
+                r.leaf() = leaf();
+            }
+            
+            return r;
+        }
         
         // This method creates a subtree_ref for the child at index k,
         // computing its size and its height. It's valid only if the height
@@ -439,7 +510,13 @@ namespace bitvector
             assert(k <= degree());
             assert(pointers(k) != 0);
             
-            return { _vector, pointers(k), height() - 1, subtree_size(k) };
+            size_t p = pointers(k);
+            size_t h = height() - 1;
+            size_t s = subtree_size(k);
+            size_t r = subtree_rank(k);
+            
+            return { _vector, p, h,
+                     s, r };
         }
         
         // The non-const version allocates the node or the leaf if the
@@ -458,8 +535,15 @@ namespace bitvector
         size_t subtree_size(size_t k) const
         {
             return k == 0        ? sizes(k) :
-            k == degree() ? size() - sizes(k - 1) :
-            sizes(k) - sizes(k - 1);
+                   k == degree() ? size()   - sizes(k - 1) :
+                                   sizes(k) - sizes(k - 1);
+        }
+        
+        size_t subtree_rank(size_t k) const
+        {
+            return k == 0        ? ranks(k) :
+                   k == degree() ? rank()   - ranks(k - 1) :
+                                   ranks(k) - ranks(k - 1);
         }
         
     public:
@@ -486,7 +570,9 @@ namespace bitvector
             popcount(_vector.size_flag_mask() &
                      (sizes() - _vector.index_mask() * word_t<W>(index)));
             
-            size_t new_index = index - (child == 0 ? 0 : sizes(child - 1));
+            size_t new_index = index;
+            if(child > 0)
+                new_index -= sizes(child - 1);
             
             //assert(new_index < this->child(child).size());
             
