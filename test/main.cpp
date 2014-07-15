@@ -81,13 +81,17 @@ int main()
         v.insert(i, true);
     }
    
+    std::cout << "Root:\n";
+    std::cout << v.root() << "\n";
+    
     std::cout << "Leaves:\n";
     for(size_t i = 0; i < v.degree(); i++) {
+        if(v.root().pointers(i) == 0)
+            continue;
+        
         std::cout << "[" << i << "] = " << v.root().child(i).size() << "\n";
         std::cout << to_binary(v.root().child(i).leaf()) << "\n";
     }
-    
-    std::cout << "\nNumber of keys in root:\n" << v.root().nkeys() << "\n";
     
     std::cout << "\nContents:\n";
     for(size_t i = 0; i < nbits; i++)

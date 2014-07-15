@@ -300,8 +300,9 @@ namespace bitvector
             const size_t buffer = is_leaf ? _leaves_buffer : _nodes_buffer;
             const size_t max_count = is_leaf ? W : degree();
             const auto count = [&](size_t i) {
-                return is_leaf ? W - t.child(i).size()
-                               : degree() - t.child(i).nkeys();
+                return t.pointers(i) == 0 ? max_count :
+                       is_leaf            ? W - t.child(i).size() :
+                                            degree() - t.child(i).nkeys();
             };
             
             size_t begin = child > buffer ? child - buffer - 1 : 0;
@@ -350,10 +351,22 @@ namespace bitvector
             std::vector<word_t<W>> leaves_bits(_leaves_buffer);
             packed_view<W> view(1, count, leaves_bits);
             
-            for(size_t i = begin, p = 0; i < end; p += t.child(i).size(), ++i)
-                view(p, p + t.child(i).size()) = t.child(i).leaf();
+            for(size_t i = begin, p = 0; i < end; ++i) {
+                if(t.pointers(i) != 0) {
+                    view(p, p + t.child(i).size()) = t.child(i).leaf();
+                    p += t.child(i).size();
+                }
+            }
             
             size_t p = 0;
+            size_t popcnt = 0;
+            
+            if(begin > 0 && t.pointers(begin - 1)) {
+                t.sizes(begin, end) = index_mask() * t.child(begin - 1).size();
+                t.ranks(begin, end) = index_mask() * t.child(begin - 1).rank();
+            }
+            
+            t.clear_keys(begin, end);
             for(size_t i = begin; i < end; ++i)
             {
                 size_t n = bits_per_leaf;
@@ -362,12 +375,18 @@ namespace bitvector
                     rem -= 1;
                 }
                 
-                t.child(i).leaf() = view(p, p + n);
-                if(i < degree())
-                    t.sizes(i) = p + n;
+                if(t.pointers(i) == 0)
+                    t.insert_child(i);
+                
+                word_t<W> leaf = view(p, p + n);
+
+                t.child(i).leaf() = leaf;
+                if(i < degree()) {
+                    t.sizes(i, degree()) += (p += n);
+                    t.ranks(i, degree()) += (popcnt += popcount(leaf));
+                }
                 
                 count -= n;
-                p += n;
             }
             
             assert(count == 0);
@@ -542,6 +561,19 @@ namespace bitvector
         }
         
         template<bool C = Const, REQUIRES(not C)>
+        void clear_keys(size_t begin, size_t end) const
+        {
+            sizes(begin, end) = 0;
+            ranks(begin, end) = 0;
+        }
+        
+        template<bool C = Const, REQUIRES(not C)>
+        void clear_keys() const
+        {
+            clear(0, degree());
+        }
+        
+        template<bool C = Const, REQUIRES(not C)>
         subtree_ref copy() const
         {
             subtree_ref r = *this;
@@ -591,17 +623,25 @@ namespace bitvector
         {
             assert(is_node());
             assert(k <= degree());
-            assert(nkeys() < degree());
             
-            size_t s = sizes(k);
-            size_t r = ranks(k);
+            if(k < degree()) {
+                // FIXME:
+                // There should be this assert, but since we use this method
+                // inside redistribute_bits, it's not always true
+                // (the node is in inconsistent state at that point)
+                // assert(nkeys() < degree());
+                
+                size_t s = sizes(k);
+                size_t r = ranks(k);
             
-            sizes(k, degree()) >>= _vector.counter_width();
-            ranks(k, degree()) >>= _vector.counter_width();
-            pointers(k + 1, degree() + 1) >>= _vector.pointer_width();
+                sizes(k, degree()) <<= _vector.counter_width();
+                ranks(k, degree()) <<= _vector.counter_width();
+                pointers(k + 1, degree() + 1) <<= _vector.pointer_width();
             
-            sizes(k) = s;
-            ranks(k) = r;
+                sizes(k) = s;
+                ranks(k) = r;
+            }
+            
             pointers(k) = _height == 1 ? _vector.alloc_leaf()
                                        : _vector.alloc_node();
         }
