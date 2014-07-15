@@ -72,9 +72,9 @@ int main()
 {
     bitvector<64> v(100000);
     
-    //v.info();
+    std::cout << v << "\n";
     
-    size_t nbits = 65;
+    size_t nbits = 188;
     
     for(size_t i = 0; i < nbits; i++)
     {
@@ -85,9 +85,8 @@ int main()
     std::cout << v.root() << "\n";
     
     std::cout << "Leaves:\n";
-    for(size_t i = 0; i < v.degree(); i++) {
-        if(v.root().pointers(i) == 0)
-            continue;
+    for(size_t i = 0; i < v.root().nchildren(); i++) {
+        assert(v.root().pointers(i) != 0);
         
         std::cout << "[" << i << "] = " << v.root().child(i).size() << "\n";
         std::cout << to_binary(v.root().child(i).leaf()) << "\n";

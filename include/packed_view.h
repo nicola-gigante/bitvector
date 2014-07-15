@@ -233,7 +233,7 @@ namespace bitvector
             assert(begin == end || begin < _size);
             assert(end <= _size);
             
-            if(begin == end)
+            if(begin >= end)
                 return 0;
             
             size_t i, l, llen, hlen;
@@ -257,7 +257,7 @@ namespace bitvector
             assert(begin == end || begin < _size);
             assert(end <= _size);
             
-            if(begin == end)
+            if(begin >= end)
                 return;
             
             size_t i, l, llen, hlen;
