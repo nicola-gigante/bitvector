@@ -19,6 +19,8 @@
 #include <vector>
 #include <numeric>
 
+#include <iostream>
+
 using namespace bitvector;
 
 void test_packed_array()

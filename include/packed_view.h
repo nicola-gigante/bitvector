@@ -86,6 +86,8 @@ namespace bitvector
             assert(width <= W);
             assert(width * size <= W * _container.size());
             
+            _index_mask = compute_index_mask();
+            
             // This seems redundant but it isn't. It's needed to setup the
             // flag bits when FlagBit is enabled
             if(FlagBit == flag_bit)
@@ -106,6 +108,10 @@ namespace bitvector
         
         // Width of presented elements
         size_t width() const { return _width; }
+        
+        // Masks for bit operations
+        word_t<W> index_mask() const { return _index_mask; }
+        word_t<W> flagbit_mask() const { return _index_mask << (_width - 1); }
         
         Container const&container() const {
             return _container;
@@ -153,6 +159,8 @@ namespace bitvector
             _width = width;
             _size = size;
             size_t length = required_length(width, size);
+            
+            _index_mask = compute_index_mask();
             
             container().reserve(length);
             container().resize(length);
@@ -232,7 +240,9 @@ namespace bitvector
             std::tie(i, l, llen, hlen) = locate(begin, end);
             
             word_t<W> low  = get_bitfield(_container[i], l, l + llen);
-            word_t<W> high = get_bitfield(_container[i + 1], 0, hlen) << llen;
+            word_t<W> high = 0;
+            if(hlen)
+                high = get_bitfield(_container[i + 1], 0, hlen) << llen;
             
             return high | low;
         }
@@ -254,8 +264,25 @@ namespace bitvector
             std::tie(i, l, llen, hlen) = locate(begin, end);
             
             _container[i]     = set_bitfield(_container[i], l, l + llen, value);
-            _container[i + 1] = set_bitfield(_container[i + 1], 0, hlen,
-                                             value >> llen);
+            if(hlen)
+                _container[i + 1] = set_bitfield(_container[i + 1], 0, hlen,
+                                                 value >> llen);
+        }
+        
+        // Compute masks for bit operations
+        word_t<W> compute_index_mask() const {
+            if(!FlagBit)
+                return 0;
+            
+            size_t degree = W / _width;
+            word_t<W> mask = 0;
+            
+            for(size_t i = 0; i < degree; ++i) {
+                mask <<= _width;
+                mask |= 1;
+            }
+            
+            return mask;
         }
         
     private:
@@ -263,6 +290,9 @@ namespace bitvector
         
         size_t _width = 0; // Number of bits per element
         size_t _size = 0; // Number of elements
+        
+        // Mask for bit operations when FlagBit is enabled
+        word_t<W> _index_mask = 0;
     };
     
     template<size_t W, template<typename...> class ContainerT, flag_bit_t FlagBit>
@@ -280,11 +310,6 @@ namespace bitvector
         reference_base(PV &v, size_t begin)
             : _v(v), _begin(begin), _end(begin + 1) { }
         
-    protected:
-        word_t<W> flag_bitmask() const {
-            return (FlagBit & (_end == _begin + 1)) << (_v.width() - 1);
-        }
-        
     public:
         reference_base(reference_base const&r) = default;
         reference_base &operator=(reference_base const&) = delete;
@@ -294,7 +319,10 @@ namespace bitvector
             : _v(r._v), _begin(r._begin), _end(r._end) { }
         
         word_t<W> value() const {
-            return _v.get(_begin, _end) & ~flag_bitmask();
+            if(_end - _begin == 1)
+                return _v.get(_begin, _end) & ~_v.flagbit_mask();
+            else
+                return _v.get(_begin, _end);
         }
         
         operator word_t<W>() const {
@@ -335,7 +363,7 @@ namespace bitvector
         
         reference &operator=(word_t<W> v)
         {
-            v = v | Base::flag_bitmask();
+            v = v | Base::_v.flagbit_mask();
             Base::_v.set(Base::_begin, Base::_end, v);
             
             return *this;
