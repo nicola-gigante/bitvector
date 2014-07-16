@@ -98,8 +98,7 @@ namespace bitvector
             _sizes.resize(counter_width(), nodes_count * _degree);
             _ranks.resize(counter_width(), nodes_count * _degree);
             _pointers.resize(pointer_width(), nodes_count * (_degree + 1));
-            
-            _leaves.reserve(leaves_count + 1);
+            _leaves.resize(leaves_count + 1);
             
             // Unused sentinel for null pointers to leaves
             // (not needed for internal nodes)
@@ -152,12 +151,18 @@ namespace bitvector
         // This "allocation" is only to take the first free node and return it
         size_t alloc_node() {
             assert(_free_node < _sizes.size());
+            if(_free_node == _sizes.size() - 1)
+                std::cout << "Warning: nodes memory exhausted\n";
             return _free_node++;
         }
         
         size_t alloc_leaf() {
-            _leaves.push_back(0);
-            return _leaves.size() - 1;
+            assert(_free_leaf < _leaves.size());
+            
+            if(_free_node == _sizes.size() - 1)
+                std::cout << "Warning: leaves memory exhausted\n";
+            
+            return _free_leaf++;
         }
         
         word_t<W> index_mask() const { return _sizes.index_mask(); }
@@ -225,7 +230,7 @@ namespace bitvector
             if(t.height() == 1) // We'll reach a leaf
             {
                 // 1. Check if we need a split and/or a redistribution of bits
-                if(t.child(child).size() == W)
+                if(t.child(child).is_full())
                 {
                     // The leaf is full, we need a redistribution
                     size_t begin, end, count;
@@ -502,6 +507,9 @@ namespace bitvector
         // Index of the first unused node in the nodes arrays
         size_t _free_node = 0;
         
+        // Index of the first unused leaf in the leaves array
+        size_t _free_leaf = 0;
+        
         // Packed arrays of data representing the nodes
         packed_array<W, flag_bit> _sizes;
         packed_array<W> _ranks;
@@ -586,7 +594,8 @@ namespace bitvector
         
         // A full node has d + 1 children
         bool is_full() const {
-            return nchildren() == degree() + 1;
+            return is_leaf() ? size() == W
+                             : nchildren() == degree() + 1;
         }
         
         template<bool C = Const, REQUIRES(not C)>
@@ -681,8 +690,8 @@ namespace bitvector
             size_t keys_end = std::min(end, degree());
             size_t last_size = end < degree() ? sizes(end) : size();
             size_t last_rank = end < degree() ? ranks(end) : rank();
-            size_t prev_size = begin > 0 ? child(begin - 1).size() : 0;
-            size_t prev_rank = begin > 0 ? child(begin - 1).rank() : 0;
+            size_t prev_size = begin > 0 ? sizes(begin - 1) : 0;
+            size_t prev_rank = begin > 0 ? ranks(begin - 1) : 0;
             
             sizes(begin, keys_end)     = _vector.index_mask() * prev_size;
             ranks(begin, keys_end)     = _vector.index_mask() * prev_rank;
@@ -745,8 +754,11 @@ namespace bitvector
         
         // Number of used keys inside the node
         size_t nchildren() const {
-            return size() == 0 ? 0
-                               : std::get<0>(find_insert_point(size())) + 1;
+            if(size() == 0)
+                return 0;
+            
+            size_t c = std::get<0>(find_insert_point(size())) + 1;
+            return c;
         }
         
         // Word composed by the size fields in the interval [begin, end)
@@ -841,8 +853,11 @@ namespace bitvector
                     o << "Leaves: " << t.nchildren() << "\n";
                     for(size_t i = 0; i < t.nchildren(); ++i)
                     {
-                        o << "[" << t.child(i).index() << "]: "
-                          << to_binary(t.child(i).leaf(), 8, '|') << "\n";
+                        if(!t.pointers(i))
+                            o << "[x]: null\n";
+                        else
+                            o << "[" << t.child(i).index() << "]: "
+                              << to_binary(t.child(i).leaf(), 8, '|') << "\n";
                     }
                 }
             }

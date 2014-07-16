@@ -18,6 +18,7 @@
 
 #include <vector>
 #include <numeric>
+#include <chrono>
 
 #include <iostream>
 
@@ -74,16 +75,21 @@ int main()
     
     std::cout << v << "\n";
     
-    size_t nbits = 247;
+    size_t nbits = 47376;
     
-    bool bit = true;
+    auto t1 = std::chrono::steady_clock::now();
     for(size_t i = 0; i < nbits; i++)
     {
-        v.insert(i, bit);
+        v.insert(i, true);
     }
     
     v.insert(nbits, true);
+    
+    auto t2 = std::chrono::steady_clock::now();
+    
+    std::cout << float(std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count())/1000 << "s\n";
    
+#if 0
     std::cout << "Root:\n";
     std::cout << v.root() << "\n";
     
@@ -113,7 +119,7 @@ int main()
     }
     
     std::cout << "\n";
-    
+#endif
     //test_packed_array();
     
     return 0;
