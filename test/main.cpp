@@ -74,22 +74,32 @@ int main()
     
     std::cout << v << "\n";
     
-    size_t nbits = 188;
+    size_t nbits = 247;
     
+    bool bit = true;
     for(size_t i = 0; i < nbits; i++)
     {
-        v.insert(i, true);
+        v.insert(i, bit);
     }
+    
+    v.insert(nbits, true);
    
     std::cout << "Root:\n";
     std::cout << v.root() << "\n";
     
-    std::cout << "Leaves:\n";
-    for(size_t i = 0; i < v.root().nchildren(); i++) {
-        assert(v.root().pointers(i) != 0);
-        
-        std::cout << "[" << i << "] = " << v.root().child(i).size() << "\n";
-        std::cout << to_binary(v.root().child(i).leaf()) << "\n";
+    for(size_t i = 0; i < v.root().nchildren(); ++i)
+    {
+        std::cout << v.root().child(i) << "\n";
+    }
+    
+    if(v.root().height() == 1) {
+        std::cout << "Leaves:\n";
+        for(size_t i = 0; i < v.root().nchildren(); i++) {
+            assert(v.root().pointers(i) != 0);
+            
+            std::cout << "[" << i << "] = " << v.root().child(i).size() << "\n";
+            std::cout << to_binary(v.root().child(i).leaf()) << "\n";
+        }
     }
     
     std::cout << "\nContents:\n";

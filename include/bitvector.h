@@ -27,6 +27,7 @@
 #include <bitset>
 #include <stdexcept>
 #include <vector>
+#include <atomic>
 
 #include <ostream>
 #include <iomanip>
@@ -243,45 +244,46 @@ namespace bitvector
                 }
                 
                 // 2. Update counters
+                _size += 1;
+                _rank += bit;
                 t.sizes(child, degree()) += index_mask();
                 t.ranks(child, degree()) += index_mask() * bit;
                 
                 // 3. Insert the bit
                 word_t<W> &leaf = t.child(child).leaf();
                 leaf = insert_bit(leaf, new_index, bit);
-                _size += 1;
-                _rank += bit;
             }
             else // We'll have another node
             {
                 // 1. Check if we need a split and/or a redistribution of keys
                 if(t.child(child).is_full())
                 {
-                    assert(false && "Unimplemented");
-//                    // The node is full, we need a redistribution
-//                    size_t begin, end, count;
-//                    std::tie(begin, end, count) = find_adjacent_children(t, child);
-//                    
-//                    // FIXME: How to decide if we need to split?
-//                    //        Let's just always split for now
-//                    //if(count >= _nodes_buffer * (degree() + 1 - _nodes_buffer)) {
-//                    if(true) {
-//                        t.insert_child(end++); // We need to split.
-//                    }
-//                    
-//                    // redistribute
-//                    redistribute_keys(t, begin, end, count);
-//                    
-//                    // Search again where to insert the bit
-//                    std::tie(child, new_index) = t.find_insert_point(index);
+                    // The node is full, we need a redistribution
+                    size_t begin, end, count;
+                    std::tie(begin, end, count) = find_adjacent_children(t, child);
+                    
+                    // FIXME: Is this the way to decide when to split?
+                    if(count >= _nodes_buffer * (degree() + 1 - _nodes_buffer)) {
+                        t.insert_child(end++); // We need to split.
+                    }
+                    
+                    // redistribute
+                    redistribute_keys(t, begin, end, count);
+                    
+                    // Search again where to insert the bit
+                    std::tie(child, new_index) = t.find_insert_point(index);
                 }
                 
-                // 2. Update counters
+                // Get the ref to the child into which we're going to recurse,
+                // Note that we need to get the ref before incrementing the counters
+                // in the parent, for consistency
+                subtree_ref next_child = t.child(child);
+                
                 t.sizes(child, degree()) += index_mask();
                 t.ranks(child, degree()) += index_mask() * bit;
                 
                 // 3. Continue the traversal
-                insert(t.child(child), new_index, bit);
+                insert(next_child, new_index, bit);
             }
         }
         
@@ -306,7 +308,7 @@ namespace bitvector
                                             (degree() + 1) - t.child(i).nchildren();
             };
             
-            size_t begin = child > buffer ? child - buffer - 1 : 0;
+            size_t begin = child >= buffer ? child - buffer + 1 : 0;
             size_t end = std::min(begin + buffer, degree() + 1);
             
             size_t freeslots = 0;
@@ -335,7 +337,7 @@ namespace bitvector
             // Reverse the count of free slots to get the total number of bits
             size_t total = max_count * buffer - maxfreeslots;
             
-            assert(begin <= child && child < end);
+            assert(window.first <= child && child < window.second);
             return { window.first, window.second, total };
         }
         
@@ -361,22 +363,7 @@ namespace bitvector
                 }
             }
             
-            // Here we setup the value of the keys. First we flatten
-            // the count to the size (and rank) of the previous subtrees of the
-            // node, if any exists (e.g. if begin > 0)
-            // [begin, end) is a range of _pointers_, but it's good because
-            // we have to flatten the keys up to the one after the last pointer.
-            // That's true only if end is not one past the last pointer, because
-            // then we don't have the corresponding key
-            size_t keys_end = std::min(end, degree());
-            if(begin > 0) {
-                assert(t.pointers(begin - 1));
-                t.sizes(begin, keys_end) = index_mask() * t.child(begin - 1).size();
-                t.ranks(begin, keys_end) = index_mask() * t.child(begin - 1).rank();
-            } else {
-                t.sizes(begin, keys_end) = 0;
-                t.ranks(begin, keys_end) = 0;
-            }
+            t.remove_children(begin, end);
             
             // The redistribution begins.
             for(size_t p = 0, i = begin; i < end; ++i)
@@ -427,16 +414,20 @@ namespace bitvector
                 size_t ptr;
             };
             
-            std::vector<pointer> pointers(_nodes_buffer * (degree() + 1));
+            std::vector<pointer> pointers;
+            pointers.reserve(_nodes_buffer * (degree() + 1));
         
-            for(size_t i = begin; i != end; ++i)
-                for(size_t c = 0; c < degree() + 1; ++c)
+            for(size_t i = begin; i != end; ++i) {
+                for(size_t c = 0; c < t.child(i).nchildren(); ++c) {
                     pointers.push_back({ t.child(i).child(c).size(),
                                          t.child(i).child(c).rank(),
                                          t.child(i).pointers(c) });
+                }
+            }
             
-            size_t p = 0;
-            for(size_t i = begin; i != end; ++i)
+            t.remove_children(begin, end);
+            
+            for(size_t p = 0, i = begin; i != end; ++i)
             {
                 size_t n = keys_per_node;
                 if(rem) {
@@ -444,18 +435,31 @@ namespace bitvector
                     rem -= 1;
                 }
                 
+                if(t.pointers(i) == 0)
+                    t.insert_child(i);
+                
                 // Clear the node
                 t.child(i).sizes() = 0;
                 t.child(i).ranks() = 0;
+                t.child(i).pointers() = 0;
                 
+                size_t childsize = 0;
+                size_t childrank = 0;
                 for(size_t j = 0; j < n; ++j)
                 {
+                    size_t s = pointers[p + j].size;
+                    size_t r = pointers[p + j].rank;
+                    
                     t.child(i).pointers(j) = pointers[p + j].ptr;
-                    t.child(i).sizes(j, degree()) +=
-                                     index_mask() * pointers[p + j].size;
-                    t.child(i).ranks(j, degree()) +=
-                                     index_mask() * pointers[p + j].rank;
+                    t.child(i).sizes(j, degree()) += index_mask() * s;
+                    t.child(i).ranks(j, degree()) += index_mask() * r;
+                    
+                    childsize += s;
+                    childrank += r;
                 }
+                
+                t.sizes(i, degree()) += index_mask() * childsize;
+                t.ranks(i, degree()) += index_mask() * childrank;
                 
                 count -= n;
                 p += n;
@@ -502,7 +506,6 @@ namespace bitvector
         packed_array<W, flag_bit> _sizes;
         packed_array<W> _ranks;
         packed_array<W> _pointers;
-        
         std::vector<word_t<W>> _leaves;
     };
     
@@ -559,10 +562,12 @@ namespace bitvector
         size_t index() const { return _index; }
         
         // Size of the subtree
-        size_t size() const { return _size; }
+        size_t  size() const { return _size; }
+        size_t &size()       { return _size; }
         
         // Rank of the subtree
-        size_t rank() const { return _rank; }
+        size_t  rank() const { return _rank; }
+        size_t &rank()       { return _rank; }
         
         // Convenience shorthand for the degree of the subvector
         size_t degree() const { return _vector.degree(); }
@@ -669,6 +674,21 @@ namespace bitvector
             pointers(k) = _height == 1 ? _vector.alloc_leaf()
                                        : _vector.alloc_node();
         }
+        
+        template<bool C = Const, REQUIRES(not C)>
+        void remove_children(size_t begin, size_t end) const
+        {
+            size_t keys_end = std::min(end, degree());
+            size_t last_size = end < degree() ? sizes(end) : size();
+            size_t last_rank = end < degree() ? ranks(end) : rank();
+            size_t prev_size = begin > 0 ? child(begin - 1).size() : 0;
+            size_t prev_rank = begin > 0 ? child(begin - 1).rank() : 0;
+            
+            sizes(begin, keys_end)     = _vector.index_mask() * prev_size;
+            ranks(begin, keys_end)     = _vector.index_mask() * prev_rank;
+            sizes(keys_end, degree()) -= _vector.index_mask() * last_size;
+            ranks(keys_end, degree()) -= _vector.index_mask() * last_rank;
+        }
 
         // Access to the value of the leaf, if this subtree_ref refers to a leaf
         leaf_reference leaf() const
@@ -725,7 +745,8 @@ namespace bitvector
         
         // Number of used keys inside the node
         size_t nchildren() const {
-            return std::get<0>(find_insert_point(size() - 1)) + 1;
+            return size() == 0 ? 0
+                               : std::get<0>(find_insert_point(size())) + 1;
         }
         
         // Word composed by the size fields in the interval [begin, end)
@@ -781,9 +802,12 @@ namespace bitvector
         // Input / Output of nodes for debugging
         friend std::ostream &operator<<(std::ostream &o, subtree_ref_t t)
         {
-            if(t.is_leaf())
-                o << to_binary(t.leaf());
-            else {
+            if(t.is_leaf()) {
+                o << "Leaf at index: " << t.index() << "\n"
+                  << "Size: " << t.size() << "\n"
+                  << "Rank: " << t.rank() << "\n"
+                  << "Contents: |" << to_binary(t.leaf(), 8, '|') << "|";
+            } else {
                 const int counter_width = int(t._vector.counter_width());
                 const int pointer_width = int(t._vector.pointer_width());
                 
@@ -812,6 +836,15 @@ namespace bitvector
                     o << std::setw(pointer_width) << t.pointers(i) << "|";
                 o << std::setw(pointer_width) << t.pointers(0) << "|\n";
                 o << "       |" << to_binary(word_t<W>(t.pointers()), pointer_width, '|') << "|\n";
+                
+                if(t.height() == 1) {
+                    o << "Leaves: " << t.nchildren() << "\n";
+                    for(size_t i = 0; i < t.nchildren(); ++i)
+                    {
+                        o << "[" << t.child(i).index() << "]: "
+                          << to_binary(t.child(i).leaf(), 8, '|') << "\n";
+                    }
+                }
             }
             
             return o;
