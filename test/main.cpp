@@ -19,6 +19,7 @@
 #include <vector>
 #include <numeric>
 #include <chrono>
+#include <map>
 
 #include <iostream>
 
@@ -69,16 +70,19 @@ void test_insert_bit()
     assert(w == 0xFFFF7FFF);
 }
 
+#define LEAVES_POPCOUNT 0
+#define DUMP_ROOT 1
+
 int main()
 {
     bitvector<64> v(100000);
     
     std::cout << v << "\n";
     
-    size_t nbits = 47376;
+    size_t nbits = 204;
     
     auto t1 = std::chrono::steady_clock::now();
-    for(size_t i = 0; i < nbits; i++)
+    for(size_t i = 0; i < nbits; ++i)
     {
         v.insert(i, true);
     }
@@ -88,8 +92,17 @@ int main()
     auto t2 = std::chrono::steady_clock::now();
     
     std::cout << float(std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count())/1000 << "s\n";
-   
-#if 0
+    
+#if LEAVES_POPCOUNT
+    std::map<size_t, size_t> stats;
+    for(auto leaf : v.leaves())
+        ++stats[popcount(leaf)];
+    
+    for(auto p : stats)
+        std::cout << "|" << p.first << "|: " << p.second << "\n";
+#endif
+    
+#if DUMP_ROOT
     std::cout << "Root:\n";
     std::cout << v.root() << "\n";
     

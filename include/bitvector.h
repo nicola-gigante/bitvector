@@ -136,6 +136,7 @@ namespace bitvector
         
         size_t counter_width() const { return _counter_width; }
         size_t pointer_width() const { return _pointer_width; }
+        array_view<const word_t<W>> leaves() const { return _leaves; }
         
         bool empty() const { return _size == 0; }
         bool full() const { return _size == _capacity; }
@@ -243,6 +244,18 @@ namespace bitvector
                     
                     // redistribute
                     redistribute_bits(t, begin, end, count);
+                    
+                    // FIXME: This assertion can fail if we redistribute without
+                    //        splitting.
+                    //        But does this mean that it's not true that every
+                    //        leaf has at least b(W - b)/(b + 1) bits?
+                    for(size_t k = begin; k < end; ++k) {
+                        size_t s = t.child(k).size();
+                        size_t t = (_leaves_buffer * (W - _leaves_buffer));
+                        size_t m = t / (_leaves_buffer + 1);
+
+                        assert(_size < t || s >= m);
+                    }
                     
                     // Search again where to insert the bit
                     std::tie(child, new_index) = t.find_insert_point(index);
@@ -856,7 +869,7 @@ namespace bitvector
                         if(!t.pointers(i))
                             o << "[x]: null\n";
                         else
-                            o << "[" << t.child(i).index() << "]: "
+                            o << "[" << t.child(i).index() << "], |" << t.child(i).size() << "|: "
                               << to_binary(t.child(i).leaf(), 8, '|') << "\n";
                     }
                 }
