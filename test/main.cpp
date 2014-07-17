@@ -71,7 +71,7 @@ void test_insert_bit()
 }
 
 #define LEAVES_POPCOUNT 0
-#define DUMP_ROOT 1
+#define DUMP 0
 
 int main()
 {
@@ -79,7 +79,7 @@ int main()
     
     std::cout << v << "\n";
     
-    size_t nbits = 204;
+    size_t nbits = 99999;
     
     auto t1 = std::chrono::steady_clock::now();
     for(size_t i = 0; i < nbits; ++i)
@@ -102,7 +102,7 @@ int main()
         std::cout << "|" << p.first << "|: " << p.second << "\n";
 #endif
     
-#if DUMP_ROOT
+#if DUMP
     std::cout << "Root:\n";
     std::cout << v.root() << "\n";
     

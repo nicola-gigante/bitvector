@@ -66,18 +66,19 @@ namespace bitvector
             
             _degree = W / counter_width();
             
-            _leaves_buffer = min(max(size_t(ceil(sqrt(W)) - 1), size_t(1)),
-                                 _degree);
+            for(_nodes_buffer = max(size_t(ceil(sqrt(_degree))), size_t(1));
+                floor((_degree + 1)/_nodes_buffer) < _nodes_buffer;
+                --_nodes_buffer);
             
-            _nodes_buffer  = max(size_t(ceil(sqrt(_degree)) - 1), size_t(1));
+            // b and b' were different parameters before. Let them still
+            // be different variables, just in case...
+            _leaves_buffer = _nodes_buffer;
             
             // Total number of leaves to allocate space for
             size_t leaves_count = ceil(_capacity * (_leaves_buffer + 1) /
                                       (_leaves_buffer * (W - _leaves_buffer)));
             
-            // Minimum number of fields for each node
-            size_t minimum_degree = (_nodes_buffer * (_degree - _nodes_buffer)) /
-                                    (_nodes_buffer + 1);
+            size_t minimum_degree = _nodes_buffer - 1;
             
             // Total number of internal nodes
             size_t nodes_count = 0;
@@ -245,17 +246,11 @@ namespace bitvector
                     // redistribute
                     redistribute_bits(t, begin, end, count);
                     
-                    // FIXME: This assertion can fail if we redistribute without
-                    //        splitting.
-                    //        But does this mean that it's not true that every
-                    //        leaf has at least b(W - b)/(b + 1) bits?
-                    for(size_t k = begin; k < end; ++k) {
-                        size_t s = t.child(k).size();
-                        size_t t = (_leaves_buffer * (W - _leaves_buffer));
-                        size_t m = t / (_leaves_buffer + 1);
-
-                        assert(_size < t || s >= m);
-                    }
+                    // It's important to stay in shape and not get to fat
+                    for(size_t k = begin; k < end; ++k)
+                        assert(_size < (_leaves_buffer * (W - _leaves_buffer)) ||
+                               t.child(k).size() >= (_leaves_buffer * (W - _leaves_buffer)) /
+                                                    (_leaves_buffer + 1));
                     
                     // Search again where to insert the bit
                     std::tie(child, new_index) = t.find_insert_point(index);
@@ -280,10 +275,8 @@ namespace bitvector
                     size_t begin, end, count;
                     std::tie(begin, end, count) = find_adjacent_children(t, child);
                     
-                    // FIXME: Is this the way to decide when to split?
-                    if(count >= _nodes_buffer * (degree() + 1 - _nodes_buffer)) {
+                    if(count / (_nodes_buffer + 1) >= _nodes_buffer)
                         t.insert_child(end++); // We need to split.
-                    }
                     
                     // redistribute
                     redistribute_keys(t, begin, end, count);
@@ -436,10 +429,12 @@ namespace bitvector
             pointers.reserve(_nodes_buffer * (degree() + 1));
         
             for(size_t i = begin; i != end; ++i) {
-                for(size_t c = 0; c < t.child(i).nchildren(); ++c) {
-                    pointers.push_back({ t.child(i).child(c).size(),
-                                         t.child(i).child(c).rank(),
-                                         t.child(i).pointers(c) });
+                if(t.pointers(i) != 0) {
+                    for(size_t c = 0; c < t.child(i).nchildren(); ++c) {
+                        pointers.push_back({ t.child(i).child(c).size(),
+                            t.child(i).child(c).rank(),
+                            t.child(i).pointers(c) });
+                    }
                 }
             }
             
