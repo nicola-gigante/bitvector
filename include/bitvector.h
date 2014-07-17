@@ -75,6 +75,7 @@ namespace bitvector
             _leaves_buffer = _nodes_buffer;
             
             // Total number of leaves to allocate space for
+            // FIXME: the + 2 here is experimental
             size_t leaves_count = ceil(_capacity * (_leaves_buffer + 1) /
                                       (_leaves_buffer * (W - _leaves_buffer)));
             
@@ -101,15 +102,11 @@ namespace bitvector
             _pointers.resize(pointer_width(), nodes_count * (_degree + 1));
             _leaves.resize(leaves_count + 1);
             
-            // Unused sentinel for null pointers to leaves
-            // (not needed for internal nodes)
-            alloc_leaf();
-            
             // Space for the root node
             alloc_node();
             
             // Setup the first leaf of the empty root
-            root().insert_child(0);
+            root().pointers(0) = alloc_leaf();
         }
         
         // Debugging info
@@ -122,7 +119,7 @@ namespace bitvector
               << "b                  = " << v._leaves_buffer << "\n"
               << "b'                 = " << v._nodes_buffer << "\n"
               << "Number of nodes    = " << v._sizes.size() / v.degree() << "\n"
-              << "Number of leaves   = " << v._leaves.capacity() << "\n"
+              << "Number of leaves   = " << v._leaves.size() - 1 << "\n"
               << "Index mask:\n"
               << to_binary(v.index_mask(), v.counter_width()) << "\n"
               << "Size flag mask:\n"
@@ -137,7 +134,18 @@ namespace bitvector
         
         size_t counter_width() const { return _counter_width; }
         size_t pointer_width() const { return _pointer_width; }
-        array_view<const word_t<W>> leaves() const { return _leaves; }
+        
+        size_t used_leaves() const { return _free_leaf - 1; }
+        size_t used_nodes() const { return _free_node; }
+        
+        size_t leaves_minimum_size() const {
+            return (_leaves_buffer * (W - _leaves_buffer)) /
+                   (_leaves_buffer + 1);
+        }
+        
+        array_view<const word_t<W>> leaves() const {
+            return { _leaves.data() + 1, _free_leaf - 1 };
+        }
         
         bool empty() const { return _size == 0; }
         bool full() const { return _size == _capacity; }
@@ -190,6 +198,9 @@ namespace bitvector
         
         void insert(subtree_ref t, size_t index, bool bit)
         {
+            if(index > t.size())
+                throw std::out_of_range("Index out of bounds");
+            
             // If we see a full node in this point it must be the root,
             // otherwise we've violated our invariants.
             // So, since it's a root and it's full, we prepare the split
@@ -352,6 +363,25 @@ namespace bitvector
             return { window.first, window.second, total };
         }
         
+        //
+        // This function clears the counters relative to children
+        // in the range [begin, end), as if the respective subtrees were empty.
+        // Pointers and subtrees are not touched.
+        //
+        void clear_children_counters(subtree_ref t, size_t begin, size_t end) const
+        {
+            size_t keys_end = std::min(end, degree());
+            size_t last_size = end < degree() ? t.sizes(end - 1) : size();
+            size_t last_rank = end < degree() ? t.ranks(end - 1) : rank();
+            size_t prev_size = begin > 0 ? t.sizes(begin - 1) : 0;
+            size_t prev_rank = begin > 0 ? t.ranks(begin - 1) : 0;
+            
+            t.sizes(begin, keys_end)     = index_mask() * prev_size;
+            t.ranks(begin, keys_end)     = index_mask() * prev_rank;
+            t.sizes(keys_end, degree()) -= index_mask() * last_size;
+            t.ranks(keys_end, degree()) -= index_mask() * last_rank;
+        }
+        
         // FIXME: rewrite using a temporary space of two words instead
         //        of the whole buffer, thus avoiding the dynamic allocation
         void redistribute_bits(subtree_ref t, size_t begin, size_t end, size_t count)
@@ -365,7 +395,7 @@ namespace bitvector
             // Here we use the existing abstraction of packed_array
             // to accumulate all the bits into a temporary buffer, and
             // subsequently redistribute them to the leaves
-            packed_array<W> bits(1, count, _leaves_buffer);
+            packed_array<W> bits(1, count, b);
             
             for(size_t i = begin, p = 0; i < end; ++i) {
                 if(t.pointers(i) != 0) {
@@ -374,7 +404,7 @@ namespace bitvector
                 }
             }
             
-            t.remove_children(begin, end);
+            clear_children_counters(t, begin, end);
             
             // The redistribution begins.
             for(size_t p = 0, i = begin; i < end; ++i)
@@ -438,7 +468,7 @@ namespace bitvector
                 }
             }
             
-            t.remove_children(begin, end);
+            clear_children_counters(t, begin, end);
             
             for(size_t p = 0, i = begin; i != end; ++i)
             {
@@ -516,7 +546,9 @@ namespace bitvector
         size_t _free_node = 0;
         
         // Index of the first unused leaf in the leaves array
-        size_t _free_leaf = 0;
+        // Starts from 1 because of the unused sentinel for null pointers to
+        // leaves (not needed for internal nodes)
+        size_t _free_leaf = 1;
         
         // Packed arrays of data representing the nodes
         packed_array<W, flag_bit> _sizes;
@@ -639,10 +671,11 @@ namespace bitvector
         
         // This method creates a subtree_ref for the child at index k,
         // computing its size and its height. It's valid only if the height
-        // is greater than 1 (so our children are internal nodes, not leaves).
+        // is at least 1 (so our children are internal nodes, not leaves).
         // For accessing the leaves of level 1 nodes, use the leaf() method
         subtree_ref_t child(size_t k) const
         {
+            assert(is_node());
             assert(k <= degree());
             assert(pointers(k) != 0);
             
@@ -663,11 +696,12 @@ namespace bitvector
         }
         
         // This method insert a new empty child into the node in position k,
-        // shifting right the subsequent keys
+        // shifting left the subsequent keys
         template<bool C = Const, REQUIRES(not C)>
         void insert_child(size_t k) const
         {
             assert(is_node());
+            assert(k > 0);
             assert(k <= degree());
             
             if(k < degree()) {
@@ -675,38 +709,23 @@ namespace bitvector
                 // There should be this assert, but since we use this method
                 // inside redistribute_bits, it's not always true
                 // (the node is in inconsistent state at that point)
-                // assert(nkeys() < degree());
+                // assert(!is_full());
                 
-                size_t s = sizes(k);
-                size_t r = ranks(k);
+                size_t s = sizes(k - 1);
+                size_t r = ranks(k - 1);
             
-                sizes(k, degree()) <<= _vector.counter_width();
-                ranks(k, degree()) <<= _vector.counter_width();
-                pointers(k + 1, degree() + 1) <<= _vector.pointer_width();
+                sizes(k - 1, degree()) <<= _vector.counter_width();
+                ranks(k - 1, degree()) <<= _vector.counter_width();
+                pointers(k, degree() + 1) <<= _vector.pointer_width();
             
-                sizes(k) = s;
-                ranks(k) = r;
+                sizes(k - 1) = s;
+                ranks(k - 1) = r;
             }
             
             pointers(k) = _height == 1 ? _vector.alloc_leaf()
                                        : _vector.alloc_node();
         }
         
-        template<bool C = Const, REQUIRES(not C)>
-        void remove_children(size_t begin, size_t end) const
-        {
-            size_t keys_end = std::min(end, degree());
-            size_t last_size = end < degree() ? sizes(end) : size();
-            size_t last_rank = end < degree() ? ranks(end) : rank();
-            size_t prev_size = begin > 0 ? sizes(begin - 1) : 0;
-            size_t prev_rank = begin > 0 ? ranks(begin - 1) : 0;
-            
-            sizes(begin, keys_end)     = _vector.index_mask() * prev_size;
-            ranks(begin, keys_end)     = _vector.index_mask() * prev_rank;
-            sizes(keys_end, degree()) -= _vector.index_mask() * last_size;
-            ranks(keys_end, degree()) -= _vector.index_mask() * last_rank;
-        }
-
         // Access to the value of the leaf, if this subtree_ref refers to a leaf
         leaf_reference leaf() const
         {

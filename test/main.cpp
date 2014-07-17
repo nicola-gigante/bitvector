@@ -20,6 +20,7 @@
 #include <numeric>
 #include <chrono>
 #include <map>
+#include <random>
 
 #include <iostream>
 
@@ -70,7 +71,7 @@ void test_insert_bit()
     assert(w == 0xFFFF7FFF);
 }
 
-#define LEAVES_POPCOUNT 0
+#define LEAVES_POPCOUNT 1
 #define DUMP 0
 
 int main()
@@ -79,21 +80,33 @@ int main()
     
     std::cout << v << "\n";
     
-    size_t nbits = 99999;
+    int nbits = 99999;
     
+//    std::random_device dev;
+//    
+//    std::vector<std::pair<int, bool>> data;
+//    
+//    std::mt19937 engine(42);
+//    std::bernoulli_distribution booldist;
+//    
+//    for(int i = 1; i < nbits; ++i)
+//    {
+//        std::uniform_int_distribution<> dist(0, i - 1);
+//        data.push_back({dist(engine), booldist(engine)});
+//    }
+//    
     auto t1 = std::chrono::steady_clock::now();
-    for(size_t i = 0; i < nbits; ++i)
-    {
-        v.insert(i, true);
-    }
-    
-    v.insert(nbits, true);
-    
+    for(int i = 0; i < nbits; ++i)
+        v.insert(0, true);
+    v.insert(0, true);
     auto t2 = std::chrono::steady_clock::now();
     
     std::cout << float(std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count())/1000 << "s\n";
     
 #if LEAVES_POPCOUNT
+    std::cout << "Leaves minimum size: " << v.leaves_minimum_size() << "\n";
+    std::cout << "Used leaves: " << v.used_leaves() << "\n";
+    std::cout << "Used nodes: " << v.used_nodes() << "\n";
     std::map<size_t, size_t> stats;
     for(auto leaf : v.leaves())
         ++stats[popcount(leaf)];
@@ -108,30 +121,33 @@ int main()
     
     for(size_t i = 0; i < v.root().nchildren(); ++i)
     {
-        std::cout << v.root().child(i) << "\n";
+        if(!v.root().pointers(i))
+            std::cout << "Child " << i << " should exist but is null\n";
+        else
+            std::cout << v.root().child(i) << "\n";
     }
     
-    if(v.root().height() == 1) {
-        std::cout << "Leaves:\n";
-        for(size_t i = 0; i < v.root().nchildren(); i++) {
-            assert(v.root().pointers(i) != 0);
-            
-            std::cout << "[" << i << "] = " << v.root().child(i).size() << "\n";
-            std::cout << to_binary(v.root().child(i).leaf()) << "\n";
-        }
-    }
+//    if(v.root().height() == 1) {
+//        std::cout << "Leaves:\n";
+//        for(size_t i = 0; i < v.root().nchildren(); i++) {
+//            assert(v.root().pointers(i) != 0);
+//            
+//            std::cout << "[" << i << "] = " << v.root().child(i).size() << "\n";
+//            std::cout << to_binary(v.root().child(i).leaf()) << "\n";
+//        }
+//    }
     
-    std::cout << "\nContents:\n";
-    for(size_t i = 0; i < nbits; i++)
-    {
-        if(i && i % 8 == 0)
-            std::cout << ' ';
-        if(i && i % 40 == 0)
-            std::cout << "\n";
-        std::cout << v.access(i);
-    }
-    
-    std::cout << "\n";
+//    std::cout << "\nContents:\n";
+//    for(size_t i = 0; i < nbits; i++)
+//    {
+//        if(i && i % 8 == 0)
+//            std::cout << ' ';
+//        if(i && i % 40 == 0)
+//            std::cout << "\n";
+//        std::cout << v.access(i);
+//    }
+//    
+//    std::cout << "\n";
 #endif
     //test_packed_array();
     
