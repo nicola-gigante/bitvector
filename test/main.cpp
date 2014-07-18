@@ -71,7 +71,7 @@ void test_insert_bit()
     assert(w == 0xFFFF7FFF);
 }
 
-#define LEAVES_POPCOUNT 1
+#define LEAVES_POPCOUNT 0
 #define DUMP 0
 
 int main()
@@ -82,23 +82,21 @@ int main()
     
     int nbits = 99999;
     
-//    std::random_device dev;
-//    
-//    std::vector<std::pair<int, bool>> data;
-//    
-//    std::mt19937 engine(42);
-//    std::bernoulli_distribution booldist;
-//    
-//    for(int i = 1; i < nbits; ++i)
-//    {
-//        std::uniform_int_distribution<> dist(0, i - 1);
-//        data.push_back({dist(engine), booldist(engine)});
-//    }
-//    
+    std::vector<std::pair<int, bool>> data;
+    
+    std::mt19937 engine(42);
+    std::bernoulli_distribution booldist;
+    
+    for(int i = 0; i < nbits; ++i)
+    {
+        std::uniform_int_distribution<> dist(0, i);
+        data.push_back({dist(engine), booldist(engine)});
+    }
+    
     auto t1 = std::chrono::steady_clock::now();
     for(int i = 0; i < nbits; ++i)
-        v.insert(0, true);
-    v.insert(0, true);
+        v.insert(data.at(i).first, data.at(i).second);
+    //v.insert(0, true);
     auto t2 = std::chrono::steady_clock::now();
     
     std::cout << float(std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count())/1000 << "s\n";
@@ -116,16 +114,16 @@ int main()
 #endif
     
 #if DUMP
-    std::cout << "Root:\n";
-    std::cout << v.root() << "\n";
-    
-    for(size_t i = 0; i < v.root().nchildren(); ++i)
-    {
-        if(!v.root().pointers(i))
-            std::cout << "Child " << i << " should exist but is null\n";
-        else
-            std::cout << v.root().child(i) << "\n";
-    }
+//    std::cout << "Root:\n";
+//    std::cout << v.root() << "\n";
+//    
+//    for(size_t i = 0; i < v.root().nchildren(); ++i)
+//    {
+//        if(!v.root().pointers(i))
+//            std::cout << "Child " << i << " should exist but is null\n";
+//        else
+//            std::cout << v.root().child(i) << "\n";
+//    }
     
 //    if(v.root().height() == 1) {
 //        std::cout << "Leaves:\n";
@@ -137,16 +135,16 @@ int main()
 //        }
 //    }
     
-//    std::cout << "\nContents:\n";
-//    for(size_t i = 0; i < nbits; i++)
-//    {
-//        if(i && i % 8 == 0)
-//            std::cout << ' ';
-//        if(i && i % 40 == 0)
-//            std::cout << "\n";
-//        std::cout << v.access(i);
-//    }
-//    
+    std::cout << "\nContents:\n";
+    for(size_t i = 0; i < nbits; i++)
+    {
+        if(i && i % 8 == 0)
+            std::cout << ' ';
+        if(i && i % 40 == 0)
+            std::cout << "\n";
+        std::cout << v.access(i);
+    }
+//
 //    std::cout << "\n";
 #endif
     //test_packed_array();

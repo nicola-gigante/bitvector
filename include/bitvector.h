@@ -75,9 +75,13 @@ namespace bitvector
             _leaves_buffer = _nodes_buffer;
             
             // Total number of leaves to allocate space for
-            // FIXME: the + 2 here is experimental
-            size_t leaves_count = ceil(_capacity * (_leaves_buffer + 1) /
-                                      (_leaves_buffer * (W - _leaves_buffer)));
+//            size_t leaves_count = ceil(_capacity * (_leaves_buffer + 1) /
+//                                      (_leaves_buffer * (W - _leaves_buffer)));
+            
+//            ceil (  n / floor (  b(w-b)/(b+1) )  )
+            size_t leaves_count = ceil(_capacity /
+                                       ((_leaves_buffer * (W - _leaves_buffer)) /
+                                        (_leaves_buffer + 1)));
             
             size_t minimum_degree = _nodes_buffer - 1;
             
