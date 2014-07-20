@@ -75,22 +75,18 @@ namespace bitvector
             _leaves_buffer = _nodes_buffer;
             
             // Total number of leaves to allocate space for
-//            size_t leaves_count = ceil(_capacity * (_leaves_buffer + 1) /
-//                                      (_leaves_buffer * (W - _leaves_buffer)));
-            
-//            ceil (  n / floor (  b(w-b)/(b+1) )  )
             size_t leaves_count = ceil(_capacity /
                                        ((_leaves_buffer * (W - _leaves_buffer)) /
                                         (_leaves_buffer + 1)));
             
-            size_t minimum_degree = _nodes_buffer - 1;
+            size_t minimum_degree = _nodes_buffer;
             
             // Total number of internal nodes
             size_t nodes_count = 0;
             size_t level_count = leaves_count;
             do
             {
-                level_count = ceil(float(level_count) / (minimum_degree + 1));
+                level_count = ceil(float(level_count) / minimum_degree);
                 nodes_count += level_count;
             } while(level_count > 1);
             
@@ -164,8 +160,8 @@ namespace bitvector
     private:
         // This "allocation" is only to take the first free node and return it
         size_t alloc_node() {
-            assert(_free_node < _sizes.size());
-            if(_free_node == _sizes.size() - 1)
+            assert(_free_node < (_sizes.size() / degree()));
+            if(_free_node == (_sizes.size() / degree()) - 1)
                 std::cout << "Warning: nodes memory exhausted\n";
             return _free_node++;
         }
@@ -173,7 +169,7 @@ namespace bitvector
         size_t alloc_leaf() {
             assert(_free_leaf < _leaves.size());
             
-            if(_free_node == _sizes.size() - 1)
+            if(_free_leaf == _leaves.size() - 1)
                 std::cout << "Warning: leaves memory exhausted\n";
             
             return _free_leaf++;

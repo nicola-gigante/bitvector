@@ -80,26 +80,24 @@ int main()
     
     std::cout << v << "\n";
     
-    int nbits = 99999;
+    size_t nbits = 99999;
     
     std::vector<std::pair<int, bool>> data;
     
     std::mt19937 engine(42);
     std::bernoulli_distribution booldist;
     
-    for(int i = 0; i < nbits; ++i)
+    for(size_t i = 0; i < nbits; ++i)
     {
-        std::uniform_int_distribution<> dist(0, i);
+        std::uniform_int_distribution<> dist(0, int(i));
         data.push_back({dist(engine), booldist(engine)});
     }
     
     auto t1 = std::chrono::steady_clock::now();
-    for(int i = 0; i < nbits; ++i)
-        v.insert(data.at(i).first, data.at(i).second);
+    for(size_t i = 0; i < nbits; ++i)
+        v.insert(data[i].first, data[i].second);
     //v.insert(0, true);
     auto t2 = std::chrono::steady_clock::now();
-    
-    std::cout << float(std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count())/1000 << "s\n";
     
 #if LEAVES_POPCOUNT
     std::cout << "Leaves minimum size: " << v.leaves_minimum_size() << "\n";
@@ -144,10 +142,12 @@ int main()
             std::cout << "\n";
         std::cout << v.access(i);
     }
-//
-//    std::cout << "\n";
+
+    std::cout << "\n";
 #endif
     //test_packed_array();
+    
+    std::cout << float(std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count())/1000 << "s\n";
     
     return 0;
 }
