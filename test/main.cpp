@@ -71,11 +71,37 @@ void test_insert_bit()
     assert(w == 0xFFFF7FFF);
 }
 
-#define LEAVES_POPCOUNT 0
-#define DUMP 0
+void test_word()
+{
+    word<256> w;
+    
+    w.data()[0] = std::numeric_limits<uint64_t>::max();
+    
+    size_t begin = 64 + 56;
+    size_t end = 64 + 56 + 16;
+    
+    w.set(5, false);
+    w.set(begin, end, 12345);
+    w.set(195, true);
+    
+    // 0x3039 is 12345
+    assert(w.data()[0] == 0xFFFFFFFFFFFFFFDF);
+    assert(w.data()[1] == 0x3900000000000000);
+    assert(w.data()[2] == 0x30);
+    assert(w.data()[3] == 8);
+    
+    assert(not w.get(5));
+    assert(w.get(begin, end) == 12345);
+    assert(w.get(195));
+}
 
 int main()
 {
+    test_word();
+#if 0
+    
+#define LEAVES_POPCOUNT 0
+#define DUMP 0
     bitvector<64> v(100000);
     
     std::cout << v << "\n";
@@ -148,7 +174,7 @@ int main()
     //test_packed_array();
     
     std::cout << float(std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count())/1000 << "s\n";
-    
+#endif
     return 0;
 }
 

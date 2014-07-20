@@ -29,6 +29,7 @@
 		C98D73671951E27D005635C6 /* bitvector.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = bitvector.h; sourceTree = "<group>"; };
 		C98D73691951E28B005635C6 /* main.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		C98D736B1951E5DD005635C6 /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = SOURCE_ROOT; };
+		C9C9DB29197C06FF00F8DABC /* TODO.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = TODO.txt; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +63,7 @@
 			isa = PBXGroup;
 			children = (
 				C98D736B1951E5DD005635C6 /* LICENSE */,
+				C9C9DB29197C06FF00F8DABC /* TODO.txt */,
 				C98D73661951E27D005635C6 /* include */,
 				C98D73681951E28B005635C6 /* test */,
 			);

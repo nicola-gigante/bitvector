@@ -123,12 +123,12 @@ namespace bitvector
         
         const_reference at(size_t i) const {
             assert(i < size());
-            return { *this, i };
+            return { *this, i, i + 1 };
         }
         
         reference at(size_t i) {
             assert(i < size());
-            return { *this, i };
+            return { *this, i, i + 1 };
         }
         
         const_reference at(size_t begin, size_t end) const {
@@ -307,16 +307,9 @@ namespace bitvector
         reference_base(PV &v, size_t begin, size_t end)
             : _v(v), _begin(begin), _end(end) { }
         
-        reference_base(PV &v, size_t begin)
-            : _v(v), _begin(begin), _end(begin + 1) { }
-        
     public:
         reference_base(reference_base const&r) = default;
         reference_base &operator=(reference_base const&) = delete;
-        
-        template<bool C, REQUIRES(Const && not C)>
-        reference_base(reference_base<C> const&r)
-            : _v(r._v), _begin(r._begin), _end(r._end) { }
         
         word_t<W> value() const {
             if(_end - _begin == 1)
@@ -347,6 +340,10 @@ namespace bitvector
         
     public:
         reference(reference const&) = default;
+        
+        operator reference_base<true>() const {
+            return { Base::_v, Base::_begin, Base::_end };
+        }
         
         reference &operator=(reference const&r)
         {
