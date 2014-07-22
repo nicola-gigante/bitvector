@@ -103,10 +103,6 @@ namespace bitvector
         return details::word_t<sizeof(T) * 8>::popcount(value);
     }
     
-    constexpr bool is_empty_range(size_t begin, size_t end) {
-        return begin >= end;
-    }
-    
     template<typename T,
              REQUIRES(std::is_integral<T>::value)>
     std::string to_binary(T val, size_t sep = 8, char ssep = ' ')
@@ -207,125 +203,6 @@ namespace bitvector
                (get_bitfield(word, index, W) << index + 1) |
                 get_bitfield(word, 0, index);
     }
-    
-    template<size_t W>
-    class word
-    {
-        static_assert(W % 64 == 0,
-                      "The word width must be a multiple of 64 bits");
-        
-        static constexpr size_t _size = W / (sizeof(uint64_t) * 8);
-        static constexpr uint64_t _ff = std::numeric_limits<uint64_t>::max();
-        
-    public:
-        word() = default;
-        word(std::initializer_list<uint64_t> data) {
-            assert(data.size() <= _size);
-            
-            std::copy(data.begin(), data.end(), _data);
-        }
-        
-        word(word const&) = default;
-        word &operator=(word const&) = default;
-        
-        uint64_t const(&data() const)[_size] { return _data; }
-        uint64_t      (&data()      )[_size] { return _data; }
-        
-        size_t size() const { return _size; }
-        
-        uint64_t get(size_t begin, size_t end) const
-        {
-            if(is_empty_range(begin, end))
-                return 0;
-            
-            assert(end - begin <= 64);
-            
-            size_t index, l, llen, hlen;
-            std::tie(index, l, llen, hlen) = locate(begin, end);
-            
-            uint64_t low = highbits(_data[index], llen) >> (64 - llen);
-            uint64_t high = 0;
-            
-            if(hlen != 0)
-                high = lowbits(_data[index + 1], hlen) << llen;
-            
-            return high | low;
-        }
-        
-        bool get(size_t i) const {
-            assert(i < W);
-            
-            return _data[i / 64] & (uint64_t(1) << (i % 64));
-        }
-        
-        void set(size_t begin, size_t end, uint64_t value)
-        {
-            if(is_empty_range(begin, end))
-                return;
-            
-            assert(end - begin <= 64);
-            
-            size_t index, l, llen, hlen;
-            std::tie(index, l, llen, hlen) = locate(begin, end);
-            
-            _data[index] = lowbits(_data[index], 64 - llen) |
-                           lowbits(value, llen) << (64 - llen);
-            
-            if(hlen)
-                _data[index + 1] = highbits(_data[index + 1], 64 - hlen) |
-                                   ((value & mask(llen, llen + hlen)) >> llen);
-        }
-        
-        void set(size_t i, bool bit)
-        {
-            assert(i < W);
-            
-            size_t word = i / 64;
-            size_t index = i % 64;
-            size_t mask = uint64_t(1) << index;
-            
-            _data[word] = (_data[word] & ~mask) | (uint64_t(bit) << index);
-        }
-        
-        
-    private:
-        // Mask with bits set in the interval [begin, end)
-        uint64_t mask(size_t begin, size_t end) const
-        {
-            if(is_empty_range(begin, end))
-                return 0;
-            
-            assert(begin < 64);
-            assert(end - begin <= 64);
-            
-            return ((_ff << (64 - end)) >> (64 - end + begin)) << begin;
-        }
-        
-        uint64_t lowbits(uint64_t val, size_t n) const
-        {
-            return val & mask(0, n);
-        }
-
-        uint64_t highbits(uint64_t val, size_t n) const
-        {
-            return val & mask(64 - n, 64);
-        }
-        
-        std::tuple<size_t, size_t, size_t, size_t>
-        locate(size_t begin, size_t end) const {
-            size_t index  = begin / 64;
-            size_t l      = begin % 64;
-            
-            size_t len = end - begin;
-            size_t llen = std::min(64 - l, len);
-            size_t hlen = len - llen;
-            
-            return { index, l, llen, hlen };
-        }
-        
-    private:
-        uint64_t _data[_size] = { };
-    };
     
     /*
      * array_view-like class.

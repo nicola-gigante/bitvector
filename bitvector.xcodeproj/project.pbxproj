@@ -29,6 +29,7 @@
 		C98D73671951E27D005635C6 /* bitvector.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = bitvector.h; sourceTree = "<group>"; };
 		C98D73691951E28B005635C6 /* main.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		C98D736B1951E5DD005635C6 /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = SOURCE_ROOT; };
+		C9A8FD19197DA0E700BFD7BF /* bitview.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bitview.h; sourceTree = "<group>"; };
 		C9C9DB29197C06FF00F8DABC /* TODO.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = TODO.txt; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -76,6 +77,7 @@
 				C98D73671951E27D005635C6 /* bitvector.h */,
 				C95B8C50195CB67D00C47D64 /* bits.h */,
 				C96EA839196306B5009A2060 /* packed_view.h */,
+				C9A8FD19197DA0E700BFD7BF /* bitview.h */,
 			);
 			path = include;
 			sourceTree = SOURCE_ROOT;
