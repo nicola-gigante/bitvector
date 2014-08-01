@@ -16,20 +16,17 @@
 
 //#include "bitvector.h"
 #include "bitview.h"
+#include "packed_view.h"
 
 #include <vector>
 
 #include <iostream>
 
-#include <x86intrin.h>
-
 //using namespace bitvector;
 
 void test_word()
 {
-    bitview<std::vector> w(1, 256);
-    
-    assert(w.container().size() == w.required_length(1, 256));
+    bitview<std::vector> w(256);
     
     w.container()[0] = std::numeric_limits<uint64_t>::max();
     
@@ -50,11 +47,30 @@ void test_word()
     assert(w.get(begin, end) == 12345);
     assert(w.get(195));
     
-    bitview<std::vector> w2(1, 256);
+    bitview<std::vector> w2(256);
     
     w2.set(w, begin, end, 42);
 
     assert(w2.get(42, 42 + (end - begin)) == 12345);
+    
+    uint64_t result;
+    bool carry;
+
+    std::tie(result, carry) = w.sum_with_carry(200, 56, false, 8);
+    assert(result == 0);
+    assert(carry);
+    
+    std::tie(result, carry) = w.sum_with_carry(200, 56, false, 9);
+    assert(result == 256);
+    assert(not carry);
+    
+    std::tie(result, carry) = w.sum_with_carry(254, 1, true, 8);
+    assert(result == 0);
+    assert(carry);
+    
+    w2.set_sum(w, begin, end, 42);
+    
+    assert(w2.get(42, 42 + (end - begin)) == 24690);
 }
 
 int main()

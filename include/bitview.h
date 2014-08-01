@@ -33,14 +33,15 @@ template<template<typename ...> class Container>
 class bitview
 {
     using T = uint64_t;
-    static constexpr size_t W = sizeof(T) * 8;
-    using container_t = Container<uint64_t>;
+    using container_t = Container<T>;
     
+    static constexpr size_t W = sizeof(T) * 8;
+
 public:
     bitview() = default;
     
-    bitview(size_t width, size_t size)
-        : _container(required_length(width, size)), _width(width) { }
+    bitview(size_t size)
+        : _container(required_container_size(size)) { }
     
     bitview(bitview const&) = default;
     bitview(bitview &&) = default;
@@ -50,24 +51,19 @@ public:
     container_t const&container() const { return _container; }
     container_t      &container()       { return _container; }
     
-    // Width of fields presented by the view
-    size_t width() const { return _width; }
-    
-    // Number of fields presented by the view
-    size_t size() const { return (_container.size() * W) / _width; }
+    // Number of bits handled by the view
+    size_t size() const { return _container.size() * W; }
 
 //private:
-    // Suggests the length of a buffer required to store the specified
-    // number of elements of the specified width
-    size_t required_length(size_t width, size_t size) {
-        return size_t(std::ceil((float(width) * size) / W));
+    static size_t required_container_size(size_t size) {
+        return size_t(std::ceil(float(size) / W));
     }
     
     size_t nbits() const { return _width * size(); }
     
-    uint64_t mask(size_t begin, size_t end) const;
-    uint64_t lowbits(uint64_t val, size_t n) const;
-    uint64_t highbits(uint64_t val, size_t n) const;
+    T mask(size_t begin, size_t end) const;
+    T lowbits(T val, size_t n) const;
+    T highbits(T val, size_t n) const;
     
     struct range_location_t {
         size_t index;
@@ -79,10 +75,19 @@ public:
     
     range_location_t locate(size_t begin, size_t end) const;
     
-    uint64_t get(size_t begin, size_t end) const;
+    std::pair<T, bool>
+    sum_with_carry(T op1, T op2, bool carry, size_t width);
+    
+    template<template<typename ...> class C>
+    bool set_sum(bitview<C> other, size_t begin, size_t end, size_t to);
+    
+    void repeat(size_t begin, size_t end, T pattern, size_t pattern_width);
+    
+    
+    T get(size_t begin, size_t end) const;
     bool get(size_t i) const;
     
-    void set(size_t begin, size_t end, uint64_t value);
+    void set(size_t begin, size_t end, T value);
     void set(size_t i, bool bit);
     
     template<template<typename ...> class C>
@@ -169,8 +174,8 @@ auto bitview<Container>::get(size_t begin, size_t end) const -> T
     
     range_location_t loc = locate(begin, end);
     
-    uint64_t low = highbits(_container[loc.index], loc.header_len) >> loc.header_begin;
-    uint64_t high = 0;
+    T low = highbits(_container[loc.index], loc.header_len) >> loc.header_begin;
+    T high = 0;
     
     if(loc.footer_len != 0)
         high = lowbits(_container[loc.index + 1], loc.footer_len) << loc.header_len;
@@ -182,7 +187,7 @@ template<template<typename ...> class Container>
 bool bitview<Container>::get(size_t i) const {
     assert(i < size());
     
-    return _container[i / 64] & (uint64_t(1) << (i % 64));
+    return _container[i / W] & (T(1) << (i % W));
 }
 
 template<template<typename ...> class Container>
@@ -213,24 +218,80 @@ void bitview<Container>::set(bitview<C> const&other,
     assert(dest - to == len);
 }
 
+// Sums the operands (with the eventual previous carry)
+// with given precision and returns the result as well as the carry
 template<template<typename ...> class Container>
-void bitview<Container>::set(size_t begin, size_t end, uint64_t value)
+auto bitview<Container>::sum_with_carry(T op1, T op2,
+                                        bool carry, size_t width)
+                                                           -> std::pair<T, bool>
+{
+    assert(width <= W);
+    
+    // FIXME: Check for uint128_t availability and devise another solution
+    T a = lowbits(op1, width);
+    T b = lowbits(op2, width);
+    T c = carry;
+    
+    T result = lowbits(a + b + c, width);
+    
+    carry = result < a || result < b || result < c;
+    
+    return { result, carry };
+}
+
+template<template<typename ...> class Container>
+template<template<typename ...> class C>
+bool bitview<Container>::set_sum(bitview<C> other,
+                                 size_t begin, size_t end, size_t to)
+{
+    if(is_empty_range(begin, end))
+        return false;
+    
+    size_t len   = end - begin;
+    size_t rem   = len % W;
+    
+    size_t src, dest, step;
+    bool carry = false;
+    
+    for(src = begin, dest = to;
+        src < end;
+        len -= step, src += step, dest += step)
+    {
+        step = len < W ? rem : W;
+        
+        T a = other.get(src, src + step);
+        T b = get(dest, dest + step);
+        
+        T result;
+        std::tie(result, carry) = sum_with_carry(a, b, carry, step);
+        set(dest, dest + step, result);
+    }
+    
+    assert(src == end);
+    assert(dest == to + (end - begin));
+    assert(len == 0);
+    
+    return carry;
+}
+
+template<template<typename ...> class Container>
+void bitview<Container>::set(size_t begin, size_t end, T value)
 {
     if(is_empty_range(begin, end))
         return;
     
-    assert(end - begin <= 64);
+    assert(end - begin <= W);
     
     range_location_t loc = locate(begin, end);
     size_t index = loc.index;
     size_t llen = loc.header_len;
     size_t hlen = loc.footer_len;
     
-    _container[index] = lowbits(_container[index], 64 - llen) |
-                        lowbits(value, llen) << (64 - llen);
+    _container[index] = lowbits(_container[index], W - llen) |
+                        lowbits(value, llen) << (W - llen);
     
     if(hlen)
-        _container[index + 1] = highbits(_container[index + 1], 64 - hlen) |
+        _container[index + 1] = highbits(_container[index + 1], W - hlen) |
                                     ((value & mask(llen, llen + hlen)) >> llen);
 }
 
@@ -239,11 +300,11 @@ void bitview<Container>::set(size_t i, bool bit)
 {
     assert(i < size());
     
-    size_t word = i / 64;
-    size_t index = i % 64;
-    size_t mask = uint64_t(1) << index;
+    size_t word = i / W;
+    size_t index = i % W;
+    size_t mask = T(1) << index;
     
-    _container[word] = (_container[word] & ~mask) | (uint64_t(bit) << index);
+    _container[word] = (_container[word] & ~mask) | (T(bit) << index);
 }
 
 #endif

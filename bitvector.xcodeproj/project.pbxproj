@@ -24,13 +24,14 @@
 
 /* Begin PBXFileReference section */
 		C95B8C50195CB67D00C47D64 /* bits.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bits.h; sourceTree = "<group>"; };
-		C96EA839196306B5009A2060 /* packed_view.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = packed_view.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		C96EA839196306B5009A2060 /* packed_view_old.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = packed_view_old.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		C98D73551951E0EF005635C6 /* bitvector */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = bitvector; sourceTree = BUILT_PRODUCTS_DIR; };
 		C98D73671951E27D005635C6 /* bitvector.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = bitvector.h; sourceTree = "<group>"; };
 		C98D73691951E28B005635C6 /* main.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		C98D736B1951E5DD005635C6 /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = SOURCE_ROOT; };
 		C9A8FD19197DA0E700BFD7BF /* bitview.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bitview.h; sourceTree = "<group>"; };
 		C9C9DB29197C06FF00F8DABC /* TODO.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = TODO.txt; sourceTree = SOURCE_ROOT; };
+		C9D7ABB5198BF11700CFBFC1 /* packed_view.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = packed_view.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -76,7 +77,8 @@
 			children = (
 				C98D73671951E27D005635C6 /* bitvector.h */,
 				C95B8C50195CB67D00C47D64 /* bits.h */,
-				C96EA839196306B5009A2060 /* packed_view.h */,
+				C96EA839196306B5009A2060 /* packed_view_old.h */,
+				C9D7ABB5198BF11700CFBFC1 /* packed_view.h */,
 				C9A8FD19197DA0E700BFD7BF /* bitview.h */,
 			);
 			path = include;
