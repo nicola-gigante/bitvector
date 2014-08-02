@@ -19,79 +19,202 @@
 
 #include "bitview.h"
 
-template<template<typename ...> class Container>
+enum flag_bit_t : bool
+{
+    no_flag_bit = false,
+    flag_bit = true
+};
+
+template<template<typename ...> class Container,
+         flag_bit_t FlagBit = no_flag_bit>
 class packed_view
 {
-    using T           = typename bitview<Container>::T;
-    using container_t = typename bitview<Container>::container_t;
-    static constexpr size_t W =  bitview<Container>::W;
-    
-    template<bool>
-    class range_reference_base;
     
 public:
-    using value_type = T;
+    using value_type = typename bitview<Container>::value_type;
+    using container_type = typename bitview<Container>::container_type;
 
     class range_reference;
-    using const_range_reference = range_reference_base<true>;
+    class item_reference;
+    class const_item_reference;
     
     packed_view() = default;
     
     packed_view(size_t width, size_t size)
-        : _bits(width * size), _width(width) { }
+        : _bits(width * size), _width(width),
+          _field_mask(compute_field_mask(width)) { }
     
     packed_view(packed_view const&) = default;
     packed_view(packed_view &&) = default;
     packed_view &operator=(packed_view const&) = default;
     packed_view &operator=(packed_view &&) = default;
     
-    container_t const&container() const { return _bits.container(); }
-    container_t      &container()       { return _bits.container(); }
+    container_type const&container() const { return _bits.container(); }
+    container_type      &container()       { return _bits.container(); }
+    
+    // The number of fields contained in the packed_view
+    size_t size() const { return _bits.size() / _width; }
+    
+    // The number of bits for each field
+    size_t width() const { return _width; }
+    
+    value_type field_mask() const { return _field_mask; }
+    value_type flag_mask() const { return _field_mask << (_width - 1); }
+    
+    // Sets the number of bits for each field.
+    // Warning: This is a disruptive operation.
+    // No attempts of preserving any meaningful data are make.
+    void set_width(size_t width) {
+        size_t oldsize = size();
+        _width = width;
+        _field_mask = compute_field_mask(width);
+        resize(oldsize);
+    }
+    
+    // Change the size of the view, possibly changing the size of the underlying
+    // container as well
+    void resize(size_t size) {
+        _bits.resize(_width * size);
+    }
     
     range_reference operator()(size_t begin, size_t end) {
         return { *this, begin, end };
     }
     
-    const_range_reference operator()(size_t begin, size_t end) const {
-        return { *this, begin, end };
+    item_reference operator[](size_t index) {
+        assert(index < size());
+        return { *this, index };
     }
     
-    // The number of fields contained in the packed_view
-    size_t size() const { return _bits.size() / _width; }
+    const_item_reference operator[](size_t index) const {
+        assert(index < size());
+        return { *this, index };
+    }
     
 private:
+    static value_type compute_field_mask(size_t width);
+    
+private:
+    // Actual data
     bitview<Container> _bits;
-    size_t _width; // Number of bits per field
+    
+    // Number of bits per field
+    size_t _width;
+    
+    // Mask with a set bit at the beginning of each field
+    value_type _field_mask;
 };
 
-// Const reference and base class for non-const references
-template<template<typename ...> class Container>
-template<bool IsConst>
-class packed_view<Container>::range_reference_base
+template<template<typename ...> class Container, flag_bit_t FlagBit>
+auto packed_view<Container, FlagBit>::compute_field_mask(size_t width) -> value_type
+{
+    size_t degree = bitview<Container>::W / width;
+    value_type mask = 0;
+    
+    for(size_t i = 0; i < degree; ++i) {
+        mask <<= width;
+        mask |= 1;
+    }
+        
+    return mask;
+}
+       
+template<template<typename ...> class Container, flag_bit_t FlagBit>
+class packed_view<Container, FlagBit>::range_reference
 {
     friend class packed_view;
     
-    using PV = typename std::conditional<IsConst, packed_view const,
-                                                  packed_view>::type;
-    
-    range_reference_base(PV &v, size_t begin, size_t end)
+    range_reference(packed_view &v, size_t begin, size_t end)
         : _v(v), _begin(begin), _end(end) { }
-public:
-    range_reference_base(range_reference_base const&r) = default;
-    range_reference_base &operator=(range_reference_base const&) = delete;
     
-    packed_view::value_type value() const {
-        return _v._bits.get(_begin * _v._width, _end * _v._width);
+public:
+    range_reference(range_reference const&) = default;
+    
+    range_reference const&operator=(value_type value) const
+    {
+        _v._bits.set(_begin * _v._width,
+                     _end   * _v._width,
+                     value);
+        
+        return *this;
     }
     
-    operator packed_view::value_type() const {
-        return value();
+    range_reference const&operator+=(range_reference const&ref) const
+    {
+        _v._bits.set_sum(ref._v._bits, ref._begin, ref._end, _begin);
+        
+        return *this;
     }
     
 private:
-    PV &_v;
+    packed_view &_v;
     size_t _begin;
     size_t _end;
 };
 
+template<template<typename ...> class Container, flag_bit_t FlagBit>
+class packed_view<Container, FlagBit>::const_item_reference
+{
+    friend class packed_view;
+    
+    const_item_reference(packed_view const&v, size_t index)
+        : _v(v), _index(index) { }
+    
+public:
+    const_item_reference(const_item_reference const&) = default;
+    
+    value_type value() const
+    {
+        size_t begin = _index * _v.width();
+        size_t end = begin + _v.width();
+        
+        return _v._bits.get(begin, end);
+    }
+    
+    operator value_type() const {
+        return value();
+    }
+    
+private:
+    packed_view const&_v;
+    size_t _index;
+};
+        
+template<template<typename ...> class Container, flag_bit_t FlagBit>
+class packed_view<Container, FlagBit>::item_reference
+{
+    friend class packed_view;
+    
+    item_reference(packed_view &v, size_t index)
+        : _v(v), _index(index) { }
+    
+public:
+    item_reference(item_reference const&) = default;
+    
+    operator const_item_reference() const {
+        return { _v, _index };
+    }
+    
+    value_type value() const {
+        return const_item_reference(*this).value();
+    }
+    
+    operator value_type() const {
+        return value();
+    }
+    
+    item_reference const&operator=(value_type v) const {
+        size_t begin = _index * _v.width();
+        size_t end   = begin + _v.width();
+        
+        _v._bits.set(begin, end, v);
+        
+        return *this;
+    }
+    
+private:
+    packed_view &_v;
+    size_t _index;
+};
+        
 #endif

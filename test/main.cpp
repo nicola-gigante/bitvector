@@ -19,10 +19,28 @@
 #include "packed_view.h"
 
 #include <vector>
+#include <array>
 
 #include <iostream>
 
 //using namespace bitvector;
+
+void test_packed_view()
+{
+    packed_view<std::vector> v(12, 27);
+    
+//    v(2, 3) = 42;
+//    assert(v(2, 3) == 42);
+//    
+//    v(3, 4) = v(2, 3);
+//    assert(v(3, 4) == 42);
+//    
+//    v(3, 4) += v(2, 3);
+//    assert(v(3, 4) == 84);
+    
+    v[3] = 42;
+    assert(v[3] == 42);
+}
 
 void test_word()
 {
