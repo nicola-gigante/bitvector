@@ -77,10 +77,9 @@ public:
     
     struct range_location_t {
         size_t index;
-        size_t header_begin;
-        size_t header_len;
-        size_t body_size;
-        size_t footer_len;
+        size_t lbegin;
+        size_t llen;
+        size_t hlen;
     };
     
     range_location_t locate(size_t begin, size_t end) const;
@@ -175,35 +174,17 @@ void set_bitfield(T &dest, size_t begin, size_t end, T value)
     dest = (dest & zeroes) | masked;
 }
 
-//std::tuple<size_t, size_t, size_t, size_t>
-//inline locate(size_t begin, size_t end) {
-//    size_t index  = begin / 64;
-//    size_t l      = begin % 64;
-//    
-//    size_t len = end - begin;
-//    size_t llen = std::min(64 - l, len);
-//    size_t hlen = len - llen;
-//    
-//    return { index, l, llen, hlen };
-//}
-
 template<template<typename ...> class Container>
 auto bitview<Container>::locate(size_t begin, size_t end) const -> range_location_t
 {
-    size_t len = end - begin;
-    size_t index = begin / W;
-    size_t header_begin = begin % W;
-    size_t header_len = std::min((W - header_begin) % W, len);
-    size_t body_size = 0;
-    size_t footer_len = 0;
- 
-    if(len > header_len) {
-        len -= header_len;
-        body_size = len / W;
-        footer_len = len % W;
-    }
+    size_t index  = begin / W;
+    size_t lbegin = begin % W;
     
-    return { index, header_begin, header_len, body_size, footer_len };
+    size_t len = end - begin;
+    size_t llen = std::min(W - lbegin, len);
+    size_t hlen = len - llen;
+    
+    return { index, lbegin, llen, hlen };
 }
 
 template<template<typename ...> class Container>
@@ -217,12 +198,11 @@ auto bitview<Container>::get(size_t begin, size_t end) const -> value_type
     range_location_t loc = locate(begin, end);
     
     value_type low = bitfield(_container[loc.index],
-                              loc.header_begin, loc.header_begin + loc.header_len);
-    //highbits(_container[loc.index], loc.header_len) >> loc.header_begin;
-    value_type high = 0;
+                              loc.lbegin, loc.lbegin + loc.llen);
     
-    if(loc.footer_len != 0)
-        high = lowbits(_container[loc.index + 1], loc.footer_len) << loc.header_len;
+    value_type high = 0;
+    if(loc.hlen != 0)
+        high = lowbits(_container[loc.index + 1], loc.hlen) << loc.llen;
     
     return high | low;
 }
@@ -326,17 +306,12 @@ void bitview<Container>::set(size_t begin, size_t end, value_type value)
     assert(end - begin <= W);
     
     range_location_t loc = locate(begin, end);
-    size_t index = loc.index;
-    size_t l = loc.header_begin;
-    size_t llen = loc.header_len;
-    size_t hlen = loc.footer_len;
-    
 
-    set_bitfield(_container[index], l, l + llen, value);
+    set_bitfield(_container[loc.index], loc.lbegin, loc.lbegin + loc.llen, value);
     
-    if(hlen) {
-        value_type bits = bitfield(value, llen, llen + hlen);
-        set_bitfield(_container[index + 1], 0, hlen, bits);
+    if(loc.hlen != 0) {
+        value_type bits = bitfield(value, loc.llen, loc.llen + loc.hlen);
+        set_bitfield(_container[loc.index + 1], 0, loc.hlen, bits);
     }
 }
 
