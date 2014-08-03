@@ -108,13 +108,13 @@ namespace bitvector
     std::string to_binary(T val, size_t sep = 8, char ssep = ' ')
     {
         std::string s;
-        size_t W = sizeof(T) * 8;
+        constexpr size_t W = sizeof(T) * 8;
         
         for(size_t i = 0; i < W; i++)
         {
             if(i && i % sep == 0)
-                s.push_back(ssep);
-            s.push_back(val % 2 ? '1' : '0');
+                s += ssep;
+            s += val % 2 ? '1' : '0';
             val = val / 2;
         }
         

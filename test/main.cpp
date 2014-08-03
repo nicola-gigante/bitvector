@@ -29,17 +29,16 @@ void test_packed_view()
 {
     packed_view<std::vector> v(12, 27);
     
-//    v(2, 3) = 42;
-//    assert(v(2, 3) == 42);
-//    
-//    v(3, 4) = v(2, 3);
-//    assert(v(3, 4) == 42);
-//    
-//    v(3, 4) += v(2, 3);
-//    assert(v(3, 4) == 84);
+    v(2, 4) = 42;
     
-    v[3] = 42;
+    assert(v[2] == 42);
     assert(v[3] == 42);
+    
+    v[3] = 1234;
+    assert(v[3] == 1234);
+    
+    v[5] = 1234; // This should lay between two words
+    assert(v[5] == 1234);
 }
 
 void test_word()
@@ -91,9 +90,27 @@ void test_word()
     assert(w2.get(42, 42 + (end - begin)) == 24690);
 }
 
+void test_bits()
+{
+    uint64_t val = 0x0000000000000000;
+
+    set_bitfield(val, 16, 16 + 8, uint64_t(42));
+    
+    assert(bitfield(val, 16, 16 + 8) == 42);
+    
+    bitview<std::vector> w(64);
+    
+    w.set(16, 16 + 8, 42);
+    
+    assert(w.container()[0] == val);
+    assert(w.get(16, 16 + 8) == 42);
+}
+
 int main()
 {
+    test_bits();
     test_word();
+    test_packed_view();
     
     return 0;
 }

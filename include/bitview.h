@@ -29,6 +29,16 @@
 // FIXME: remove this header when finished debugging
 #include <iostream>
 
+#define REQUIRES(...) \
+typename = typename std::enable_if<(__VA_ARGS__)>::type
+
+// Returns the bit size of the given type
+template<typename T,
+         REQUIRES(std::is_integral<T>::value)>
+constexpr size_t bitsize() {
+    return sizeof(T) * CHAR_BIT;
+}
+
 template<template<typename ...> class Container>
 class bitview
 {
@@ -36,7 +46,7 @@ public:
     using value_type = uint64_t;
     using container_type = Container<value_type>;
     
-    static constexpr size_t W = sizeof(value_type) * 8;
+    static constexpr size_t W = bitsize<value_type>();
     
     bitview() = default;
     
@@ -64,10 +74,6 @@ public:
     static size_t required_container_size(size_t size) {
         return size_t(std::ceil(float(size) / W));
     }
-    
-    value_type mask(size_t begin, size_t end) const;
-    value_type lowbits(value_type val, size_t n) const;
-    value_type highbits(value_type val, size_t n) const;
     
     struct range_location_t {
         size_t index;
@@ -107,30 +113,66 @@ constexpr bool is_empty_range(size_t begin, size_t end) {
 }
 
 // Mask with bits set in the interval [begin, end)
-template<template<typename ...> class Container>
-auto bitview<Container>::mask(size_t begin, size_t end) const -> value_type
+template<typename T,
+         REQUIRES(std::is_integral<T>::value)>
+T mask(size_t begin, size_t end)
 {
+    constexpr size_t W = bitsize<T>();
+    
     if(is_empty_range(begin, end))
         return 0;
     
     assert(begin < W);
     assert(end - begin <= W);
     
-    constexpr value_type ff = std::numeric_limits<value_type>::max();
+    constexpr T ff = std::numeric_limits<T>::max();
     
     return ((ff << (W - end)) >> (W - end + begin)) << begin;
 }
 
-template<template<typename ...> class Container>
-auto bitview<Container>::lowbits(value_type val, size_t n) const -> value_type
+template<typename T,
+         REQUIRES(std::is_integral<T>::value)>
+T lowbits(T val, size_t n)
 {
-    return val & mask(0, n);
+    return val & mask<T>(0, n);
 }
 
-template<template<typename ...> class Container>
-auto bitview<Container>::highbits(value_type val, size_t n) const -> value_type
+template<typename T,
+         REQUIRES(std::is_integral<T>::value)>
+T highbits(T val, size_t n)
 {
-    return val & mask(W - n, W);
+    constexpr size_t W = bitsize<T>();
+    
+    return val & mask<T>(W - n, W);
+}
+
+template<typename T,
+         REQUIRES(std::is_integral<T>::value)>
+T bitfield(T val, size_t begin, size_t end)
+{
+    constexpr size_t W = bitsize<T>();
+    
+    if(is_empty_range(begin, end))
+        return 0;
+    
+    assert(begin < W);
+    assert(end - begin <= W);
+    
+    return lowbits(highbits(val, W - begin) >> begin, end - begin);
+}
+
+template<typename T>
+void set_bitfield(T &dest, size_t begin, size_t end, T value)
+{
+    if(is_empty_range(begin, end))
+        return;
+    
+    size_t len = end - begin;
+    
+    T masked = lowbits(value, len) << begin;
+    T zeroes = ~mask<T>(begin, end);
+    
+    dest = (dest & zeroes) | masked;
 }
 
 //std::tuple<size_t, size_t, size_t, size_t>
@@ -148,13 +190,13 @@ auto bitview<Container>::highbits(value_type val, size_t n) const -> value_type
 template<template<typename ...> class Container>
 auto bitview<Container>::locate(size_t begin, size_t end) const -> range_location_t
 {
+    size_t len = end - begin;
     size_t index = begin / W;
     size_t header_begin = begin % W;
-    size_t header_len = (W - header_begin) % W;
+    size_t header_len = std::min((W - header_begin) % W, len);
     size_t body_size = 0;
     size_t footer_len = 0;
  
-    size_t len = end - begin;
     if(len > header_len) {
         len -= header_len;
         body_size = len / W;
@@ -174,7 +216,9 @@ auto bitview<Container>::get(size_t begin, size_t end) const -> value_type
     
     range_location_t loc = locate(begin, end);
     
-    value_type low = highbits(_container[loc.index], loc.header_len) >> loc.header_begin;
+    value_type low = bitfield(_container[loc.index],
+                              loc.header_begin, loc.header_begin + loc.header_len);
+    //highbits(_container[loc.index], loc.header_len) >> loc.header_begin;
     value_type high = 0;
     
     if(loc.footer_len != 0)
@@ -283,15 +327,17 @@ void bitview<Container>::set(size_t begin, size_t end, value_type value)
     
     range_location_t loc = locate(begin, end);
     size_t index = loc.index;
+    size_t l = loc.header_begin;
     size_t llen = loc.header_len;
     size_t hlen = loc.footer_len;
     
-    _container[index] = lowbits(_container[index], W - llen) |
-                        lowbits(value, llen) << (W - llen);
+
+    set_bitfield(_container[index], l, l + llen, value);
     
-    if(hlen)
-        _container[index + 1] = highbits(_container[index + 1], W - hlen) |
-                                    ((value & mask(llen, llen + hlen)) >> llen);
+    if(hlen) {
+        value_type bits = bitfield(value, llen, llen + hlen);
+        set_bitfield(_container[index + 1], 0, hlen, bits);
+    }
 }
 
 template<template<typename ...> class Container>
