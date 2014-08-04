@@ -35,76 +35,137 @@ typename = typename std::enable_if<(__VA_ARGS__)>::type
 
 namespace bitvector
 {
-    namespace details
-    {
-        template<size_t W>
-        struct word_t { };
-        
-        // FIXME:
-        template<>
-        struct word_t<8> {
-            using type = uint8_t;
-            
-            static constexpr size_t popcount(type v) {
-                return __builtin_popcount(v);
-            }
-        };
-        
-        template<>
-        struct word_t<16> {
-            using type = uint16_t;
-            
-            static constexpr size_t popcount(type v) {
-                return __builtin_popcount(v);
-            }
-        };
-        
-        template<>
-        struct word_t<32> {
-            using type = uint32_t;
-            
-            static constexpr size_t popcount(type v) {
-                return __builtin_popcount(v);
-            }
-        };
-        
-        template<>
-        struct word_t<64> {
-            using type = uint64_t;
-            
-            static constexpr size_t popcount(type v) {
-                return __builtin_popcountll(v);
-            }
-        };
-        
-        // FIXME: test __uint128_t availability
-        template<>
-        struct word_t<128> {
-            using type = __uint128_t;
-
-        public:
-            static constexpr size_t popcount(type v) {
-                
-                return word_t<64>::popcount(v >> 64) +
-                word_t<64>::popcount((v & (type(0xFFFFFFFFFFFFFFFF) << 64)) >> 64);
-            }
-        };
+    // Utility function to check for an empty range,
+    // used through all the code
+    constexpr bool is_empty_range(size_t begin, size_t end) {
+        return begin >= end;
+    }
+    
+    // Returns the bit size of the given type
+    template<typename T, REQUIRES(std::is_integral<T>::value)>
+    constexpr size_t bitsize() {
+        return sizeof(T) * CHAR_BIT;
     }
     
     /*
-     * Generic configurable-size word type. The size parameter is in bits.
+     * Count the number of set bits in a word
      */
-    template<size_t W>
-    using word_t = typename details::word_t<W>::type;
-    
-    template<typename T>
+    template<typename T, REQUIRES(std::is_integral<T>::value)>
     constexpr size_t popcount(T value)
     {
-        return details::word_t<sizeof(T) * 8>::popcount(value);
+        static_assert(std::is_same<T, uint64_t>::value,
+                      "Popcount is unimplemented for types other than uint64_t");
+        // TODO: Check the availability of __builtin_popcountll
+        return __builtin_popcountll(value);
     }
     
-    template<typename T,
-             REQUIRES(std::is_integral<T>::value)>
+    /*
+     * Bitmasking functions
+     */
+    
+    /*
+     * Returns a mask word for ask with bits set in the interval [begin, end)
+     */
+    template<typename T, REQUIRES(std::is_integral<T>::value)>
+    T mask(size_t begin, size_t end)
+    {
+        constexpr size_t W = bitsize<T>();
+        
+        if(is_empty_range(begin, end))
+            return 0;
+        
+        assert(begin < W);
+        assert(end - begin <= W);
+        
+        constexpr T ff = std::numeric_limits<T>::max();
+        
+        return ((ff << (W - end)) >> (W - end + begin)) << begin;
+    }
+    
+    /*
+     * Returns the lower n bits in the word
+     */
+    template<typename T, REQUIRES(std::is_integral<T>::value)>
+    T lowbits(T val, size_t n)
+    {
+        return val & mask<T>(0, n);
+    }
+    
+    /*
+     * Returns the higher n bits in the word.
+     * Note that bits are not shifted, simply lower bits get masked away.
+     */
+    template<typename T, REQUIRES(std::is_integral<T>::value)>
+    T highbits(T val, size_t n)
+    {
+        constexpr size_t W = bitsize<T>();
+        
+        return val & mask<T>(W - n, W);
+    }
+    
+    /*
+     * Returns the _value_ contained in the bits in the interval [begin, end)
+     */
+    template<typename T, REQUIRES(std::is_integral<T>::value)>
+    T bitfield(T val, size_t begin, size_t end)
+    {
+        constexpr size_t W = bitsize<T>();
+        
+        if(is_empty_range(begin, end))
+            return 0;
+        
+        assert(begin < W);
+        assert(end - begin <= W);
+        
+        return lowbits(highbits(val, W - begin) >> begin, end - begin);
+    }
+    
+    /*
+     * Set the value of the bits in the interval [begin, end) to the
+     * corresponding low bits of 'value'
+     */
+    template<typename T>
+    void set_bitfield(T &dest, size_t begin, size_t end, T value)
+    {
+        if(is_empty_range(begin, end))
+            return;
+        
+        size_t len = end - begin;
+        
+        T masked = lowbits(value, len) << begin;
+        T zeroes = ~mask<T>(begin, end);
+        
+        dest = (dest & zeroes) | masked;
+    }
+    
+    /*
+     * Returns the specified bit in the word
+     */
+    template<typename T, REQUIRES(std::is_integral<T>::value)>
+    bool bit(T word, size_t index)
+    {
+        return bool(bitfield(word, index, index + 1));
+    }
+    
+    /*
+     * Inserts the specified bit inside the word at the specified position,
+     * shifting left all the more significant bits. The MSB is lost.
+     */
+    template<typename T, REQUIRES(std::is_integral<T>::value)>
+    T insert_bit(T word, size_t index, bool bit)
+    {
+        const size_t W = sizeof(T) * 8;
+        
+        return static_cast<T>(bit) << index            |
+               (bitfield(word, index, W) << index + 1) |
+                bitfield(word, 0, index);
+    }
+    
+    /*
+     * Render the word as a binary string.
+     * Every 'sep' bits, the char ssep is printed.
+     */
+    template<typename T, REQUIRES(std::is_integral<T>::value)>
     std::string to_binary(T val, size_t sep = 8, char ssep = ' ')
     {
         std::string s;
@@ -121,159 +182,5 @@ namespace bitvector
         std::reverse(s.begin(), s.end());
         return s;
     }
-    
-    // Mask functions
-    template<size_t W>
-    word_t<W> ones(size_t begin, size_t end)
-    {
-        if(begin == end)
-            return 0;
-        
-        assert(begin < end);
-        assert(begin < W);
-        assert(end <= W);
-        
-        size_t shift = W - end + begin;
-        
-        return (std::numeric_limits<word_t<W>>::max() >> shift) << begin;
-    }
-    
-    template<size_t W>
-    word_t<W> zeroes(size_t begin, size_t end)
-    {
-        return ones<W>(0, begin) | ones<W>(end, W);
-    }
-    
-    // Extracts from the word the bits in the range [begin, end),
-    // counting from zero from the LSB.
-    template<typename T,
-             REQUIRES(std::is_integral<T>::value)>
-    T get_bitfield(T word, size_t begin, size_t end)
-    {
-        const size_t W = sizeof(T) * 8;
-        
-        assert(end >= begin);
-        assert(begin < W);
-        assert(end <= W);
-        
-        const T mask = ones<W>(begin, end);
-        
-        return (word & mask) >> begin;
-    }
-    
-    template<typename T,
-             REQUIRES(std::is_integral<T>::value)>
-    bool get_bit(T word, size_t index)
-    {
-        return bool(get_bitfield(word, index, index + 1));
-    }
-    
-    template<typename T, typename U,
-             REQUIRES(std::is_integral<T>::value),
-             REQUIRES(std::is_integral<U>::value)>
-    T set_bitfield(T word, size_t begin, size_t end, U value)
-    {
-        const size_t W = sizeof(T) * 8;
-        
-        assert(end >= begin);
-        assert(begin < W);
-        assert(end <= W);
-        
-        word_t<W> mask = zeroes<W>(begin, end);
-        
-        value = (value << begin) & ~mask;
-        
-        return (word & mask) | value;
-    }
-    
-    template<typename T,
-             REQUIRES(std::is_integral<T>::value)>
-    T set_bit(T word, size_t index, bool bit)
-    {
-        return set_bitfield(word, index, index + 1, bit);
-    }
-    
-    template<typename T,
-             REQUIRES(std::is_integral<T>::value)>
-    T insert_bit(T word, size_t index, bool bit)
-    {
-        const size_t W = sizeof(T) * 8;
-        
-        return static_cast<T>(bit) << index                |
-               (get_bitfield(word, index, W) << index + 1) |
-                get_bitfield(word, 0, index);
-    }
-    
-    /*
-     * array_view-like class.
-     */
-    template<typename T>
-    class array_view
-    {
-    public:
-        using value_type             = T;
-        using reference              = T       &;
-        using const_reference        = T const &;
-        using pointer                = T       *;
-        using const_pointer          = T const *;
-        using iterator               = T       *;
-        using const_iterator         = T const *;
-        using reverse_iterator       = std::reverse_iterator<iterator>;
-        using const_reverse_iterator = std::reverse_iterator<const_iterator>;
-        using size_type              = size_t;
-        using difference_type        = ptrdiff_t;
-        
-        array_view() = default;
-        
-        template<typename Container,
-                 typename = decltype(std::declval<T *&>() = std::declval<Container&>().data()),
-                 typename = decltype(std::declval<size_t&>() = std::declval<Container&>().size())>
-        array_view(Container &container)
-            : _data(container.data()), _size(container.size()) { }
-        
-        array_view(T *data, size_type size)
-            : _data(data), _size(size)
-        {
-            assert(data != nullptr || size == 0);
-        }
-        
-        array_view(array_view const&) = default;
-        array_view(array_view &&) = default;
-        
-        array_view &operator=(array_view const&) = default;
-        array_view &operator=(array_view &&) = default;
-        
-        size_type size() const { return _size; }
-        
-        bool empty() const { return size() == 0; }
-        
-        const_pointer data() const { return _data; }
-        pointer       data()       { return _data; }
-        
-        iterator       begin()       { return _data; }
-        iterator       end()         { return _data + _size; }
-        const_iterator begin() const { return _data; }
-        const_iterator end()   const { return _data + _size; }
-        
-        reverse_iterator       rbegin()       { return reverse_iterator(end()); }
-        reverse_iterator       rend()         { return reverse_iterator(begin()); }
-        const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
-        const_reverse_iterator rend()   const { return const_reverse_iterator(begin()); }
-        
-        reference operator[](size_type i) {
-            assert(i < _size);
-            return _data[i];
-        }
-        
-        value_type operator[](size_type i) const {
-            assert(i < _size);
-            return _data[i];
-        }
-        
-    private:
-        T *_data = nullptr;
-        size_type _size = 0;
-    };
-    
 } // namespace bitvector
 #endif

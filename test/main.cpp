@@ -17,13 +17,14 @@
 //#include "bitvector.h"
 #include "bitview.h"
 #include "packed_view.h"
+//#include "bitvector.h"
 
 #include <vector>
 #include <array>
 
 #include <iostream>
 
-//using namespace bitvector;
+using namespace bitvector;
 
 void test_packed_view()
 {

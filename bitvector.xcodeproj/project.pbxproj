@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		C98D736A1951E28B005635C6 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C98D73691951E28B005635C6 /* main.cpp */; };
+		C9C69D94198FB3E6004711C3 /* bitvector.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C9C69D92198FB3E6004711C3 /* bitvector.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -26,10 +27,11 @@
 		C95B8C50195CB67D00C47D64 /* bits.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bits.h; sourceTree = "<group>"; };
 		C96EA839196306B5009A2060 /* packed_view_old.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = packed_view_old.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		C98D73551951E0EF005635C6 /* bitvector */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = bitvector; sourceTree = BUILT_PRODUCTS_DIR; };
-		C98D73671951E27D005635C6 /* bitvector.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = bitvector.h; sourceTree = "<group>"; };
+		C98D73671951E27D005635C6 /* bitvector.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = bitvector.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
 		C98D73691951E28B005635C6 /* main.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		C98D736B1951E5DD005635C6 /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE; sourceTree = SOURCE_ROOT; };
 		C9A8FD19197DA0E700BFD7BF /* bitview.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bitview.h; sourceTree = "<group>"; };
+		C9C69D92198FB3E6004711C3 /* bitvector.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; name = bitvector.cpp; path = src/bitvector.cpp; sourceTree = SOURCE_ROOT; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
 		C9C9DB29197C06FF00F8DABC /* TODO.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = TODO.txt; sourceTree = SOURCE_ROOT; };
 		C9D7ABB5198BF11700CFBFC1 /* packed_view.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = packed_view.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -66,6 +68,7 @@
 			children = (
 				C98D736B1951E5DD005635C6 /* LICENSE */,
 				C9C9DB29197C06FF00F8DABC /* TODO.txt */,
+				C9C69D95198FB3F0004711C3 /* src */,
 				C98D73661951E27D005635C6 /* include */,
 				C98D73681951E28B005635C6 /* test */,
 			);
@@ -91,6 +94,14 @@
 			);
 			path = test;
 			sourceTree = SOURCE_ROOT;
+		};
+		C9C69D95198FB3F0004711C3 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				C9C69D92198FB3E6004711C3 /* bitvector.cpp */,
+			);
+			name = src;
+			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
@@ -143,6 +154,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C9C69D94198FB3E6004711C3 /* bitvector.cpp in Sources */,
 				C98D736A1951E28B005635C6 /* main.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -154,7 +166,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -179,6 +191,7 @@
 				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_PEDANTIC = NO;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
@@ -186,6 +199,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				WARNING_CFLAGS = "-Weverything";
 			};
 			name = Debug;
 		};
@@ -193,7 +207,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -212,14 +226,17 @@
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
 				GCC_FAST_MATH = YES;
 				GCC_OPTIMIZATION_LEVEL = fast;
+				GCC_PREPROCESSOR_DEFINITIONS = NDEBUG;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_PEDANTIC = NO;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				SDKROOT = macosx;
+				WARNING_CFLAGS = "-Weverything";
 			};
 			name = Release;
 		};
