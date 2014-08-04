@@ -39,6 +39,17 @@ void test_packed_view()
     
     v[5] = 1234; // This should lay between two words
     assert(v[5] == 1234);
+    
+    v[0] = 10;
+    v[1] = 20;
+    v[2] = 30;
+    v[3] = 40;
+    v[4] = 50;
+    v[5] = 60;
+    
+    assert(v(0,6).find(5) == 0);
+    assert(v(0,6).find(25) == 2);
+    assert(v(0,6).find(65) == 6);
 }
 
 void test_word()

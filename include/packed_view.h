@@ -97,7 +97,11 @@ public:
 private:
     static value_type compute_field_mask(size_t width);
     
+    value_type get(size_t begin, size_t end) const;
+    void set(size_t begin, size_t end, value_type value);
+    
     void repeat(size_t begin, size_t end, value_type value);
+    size_t find(size_t begin, size_t end, value_type value) const;
     static std::string to_binary(const_range_reference const&ref,
                                  size_t sep, char ssep);
     
@@ -127,17 +131,31 @@ auto packed_view<Container>::compute_field_mask(size_t width) -> value_type
 }
         
 template<template<typename ...> class Container>
+auto packed_view<Container>::get(size_t begin, size_t end) const
+    -> value_type
+{
+    return _bits.get(begin * width(), end * width());
+}
+
+template<template<typename ...> class Container>
+void packed_view<Container>::set(size_t begin, size_t end, value_type value)
+{
+    return _bits.set(begin * width(), end * width(), value);
+}
+        
+template<template<typename ...> class Container>
 void packed_view<Container>::repeat(size_t begin, size_t end, value_type pattern)
 {
-    size_t bits_per_word = (W / width()) * width(); // It's not useless
+    size_t fields_per_word = W / width();
+    size_t bits_per_word = fields_per_word * width(); // It's not useless
     size_t len = (end - begin) * width();
     size_t rem = len % bits_per_word;
     
     value_type value = field_mask() * lowbits(pattern, width());
     
-    size_t p, step;
-    
-    for(p = begin * width(); p < end * width(); len -= step, p += step)
+    for(size_t step, p = begin * width();
+        p < end * width();
+        len -= step, p += step)
     {
         step = len < bits_per_word ? rem : bits_per_word;
         
@@ -145,6 +163,30 @@ void packed_view<Container>::repeat(size_t begin, size_t end, value_type pattern
     }
 }
 
+template<template<typename ...> class Container>
+size_t packed_view<Container>::find(size_t begin, size_t end,
+                                    value_type value) const
+{
+    size_t fields_per_word = W / width();
+    size_t len = end - begin;
+    size_t rem = len % fields_per_word;
+    
+    value = field_mask() * lowbits(value, width() - 1);
+    
+    size_t result = len;
+    for(size_t step, p = begin; p < end; len -= step, p += step)
+    {
+        step = len < fields_per_word ? rem : fields_per_word;
+        
+        value_type word = get(p, p + step) | flag_mask();
+        
+        result -= bitvector::popcount(lowbits(flag_mask() & (word - value),
+                                              step * width()));
+    }
+    
+    return result;
+}
+    
 template<template<typename ...> class Container>
 std::string packed_view<Container>::to_binary(const_range_reference const&ref,
                                               size_t sep, char ssep)
@@ -176,6 +218,11 @@ class packed_view<Container>::const_range_reference
     
 public:
     const_range_reference(const_range_reference const&) = default;
+    
+    size_t find(value_type value) const
+    {
+        return _v.find(_begin, _end, value);
+    }
     
     friend std::string to_binary(const_range_reference const&ref,
                                  size_t sep = 8, char ssep = ' ')
@@ -225,6 +272,10 @@ public:
         return *this;
     }
     
+    size_t find(value_type value) const {
+        return const_range_reference(*this).find(value);
+    }
+    
     friend std::string to_binary(range_reference const&ref,
                                  size_t sep = 8, char ssep = ' ')
     {
@@ -248,12 +299,8 @@ class packed_view<Container>::const_item_reference
 public:
     const_item_reference(const_item_reference const&) = default;
     
-    value_type value() const
-    {
-        size_t begin = _index * _v.width();
-        size_t end = begin + _v.width();
-        
-        return _v._bits.get(begin, end);
+    value_type value() const {
+        return _v.get(_index, _index + 1);
     }
     
     operator value_type() const {
@@ -264,10 +311,8 @@ private:
     packed_view const&_v;
     size_t _index;
 };
-        
 
 
-        
 template<template<typename ...> class Container>
 class packed_view<Container>::item_reference
 {
@@ -292,10 +337,7 @@ public:
     }
     
     item_reference const&operator=(value_type v) const {
-        size_t begin = _index * _v.width();
-        size_t end   = begin + _v.width();
-        
-        _v._bits.set(begin, end, v);
+        _v.set(_index, _index + 1, v);
         
         return *this;
     }
