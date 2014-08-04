@@ -337,11 +337,7 @@ namespace bitvector
         {
             assert(is_node());
             
-            size_t child = 0;
-//            degree() -
-//            popcount(_vector.size_flag_mask() &
-//                     (sizes() - _vector.index_mask() * word_t<W>(index)));
-            static_assert(false, "you still have to migrate find_insert_point");
+            size_t child = sizes().find(index);
             
             size_t new_index = index;
             if(child > 0)
@@ -503,6 +499,10 @@ namespace bitvector
                     size_t size, size_t rank)
             : Base(vector, index, height, size, rank) { }
         
+        operator subtree_const_ref() const {
+            return { _vector, _index, _height, _size, _rank };
+        }
+        
         subtree_ref(subtree_ref const&) = default;
         subtree_ref &operator=(subtree_ref const&) = default;
         
@@ -527,7 +527,16 @@ namespace bitvector
 //                sizes(k - 1, degree()) <<= _vector.counter_width;
 //                ranks(k - 1, degree()) <<= _vector.counter_width;
 //                pointers(k, degree() + 1) <<= _vector.pointer_width;
-                static_assert(false, "Shift of fields is still unimplemented");
+                // TODO: To fix this step we need two things:
+                // - being able to assign overlapping ranges. This has to be
+                //   fixed at the bitview level
+                // - have the assignment truncate the lhs if the range is bigger,
+                //   rather than overflowing on the right as we do now.
+                // Essentially: we have to rewrite bitview::get(). yeah -.-
+                sizes(k, degree()) = sizes(k - 1, degree());
+                ranks(k, degree()) = ranks(k - 1, degree());
+                pointers(k + 1, degree() + 1) = pointers(k, degree() + 1);
+                assert(false && "Shift of fields is still unimplemented");
                 
                 sizes(k - 1) = s;
                 ranks(k - 1) = r;

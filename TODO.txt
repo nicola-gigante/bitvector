@@ -1,12 +1,9 @@
 
-Requirements:
- - Generalize to nodes of arbitrary precision: finish the work on the
-   arbitrary width 'word' type.
- - Consider the idea of integrating word and packed_view into a better,
-   refactored packed_view
+Functionality:
+ - Finish the refactoring to use the new packed_view
 
 Speed and space:
- - Block based container to use as the underlying storage for nodes and leaves,
+ - Switch to std::deque as the underlying storage for nodes and leaves,
    in order to not being required to allocate all the worst-case nodes in
    advance every time.
    

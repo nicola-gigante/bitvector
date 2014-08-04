@@ -58,8 +58,8 @@ namespace bitvector
         // Number of bits handled by the view
         size_t size() const { return _container.size() * W; }
         
-        // Change the size of the view, possibly changing the size of the underlying
-        // container as well
+        // Change the size of the view, possibly changing the size of the
+        // underlying container as well
         void resize(size_t size) {
             return _container.resize(required_container_size(size));
         }
@@ -82,16 +82,23 @@ namespace bitvector
         sum_with_carry(value_type op1, value_type op2, bool carry, size_t width);
         
         template<template<typename ...> class C>
-        bool set_sum(bitview<C> other, size_t begin, size_t end, size_t to);
+        bool set_sum(bitview<C> const&other, size_t begin, size_t end, size_t to);
         
         value_type get(size_t begin, size_t end) const;
-        bool get(size_t i) const;
         
         void set(size_t begin, size_t end, value_type value);
-        void set(size_t i, bool bit);
         
         template<template<typename ...> class C>
-        void set(bitview<C> const&other, size_t begin, size_t end, size_t to);
+        void copy_forward(bitview<C> const&src,
+                          size_t src_begin, size_t src_end, size_t dest_begin);
+        
+        template<template<typename ...> class C>
+        void copy_backward(bitview<C> const&src,
+                           size_t src_begin, size_t src_end, size_t dest_begin);
+        
+        template<template<typename ...> class C>
+        void copy(bitview<C> const&src,
+                  size_t src_begin, size_t src_end, size_t dest_begin);
         
     private:
         container_type _container;
@@ -134,38 +141,43 @@ namespace bitvector
     }
     
     template<template<typename ...> class Container>
-    bool bitview<Container>::get(size_t i) const {
-        assert(i < size());
+    template<template<typename ...> class C>
+    void bitview<Container>::copy_forward(bitview<C> const&srcbv,
+                                          size_t src_begin, size_t src_end,
+                                          size_t dest_begin)
+    {
+        size_t len = (src_end - src_begin);
+        size_t rem = len % W;
         
-        return _container[i / W] & (value_type(1) << (i % W));
+        for(size_t step, src = src_begin, dest = dest_begin;
+            src < src_end;
+            len -= step, src += step, dest += step)
+        {
+            step = len < W ? rem : W;
+            
+            set(dest, dest + step, srcbv.get(src, src + step));
+        }
     }
     
     template<template<typename ...> class Container>
     template<template<typename ...> class C>
-    void bitview<Container>::set(bitview<C> const&other,
-                                 size_t begin, size_t end, size_t to)
+    void bitview<Container>::copy_backward(bitview<C> const&src,
+                                           size_t src_begin, size_t src_end,
+                                           size_t dest_begin)
     {
-        if(is_empty_range(begin, end))
-            return;
-        
-        size_t len = end - begin;
-        
-        assert(to < size() - len);
-        
-        // Pointer to current copy positions
-        size_t src = begin;
-        size_t dest = to;
-        
-        size_t n = len / W;
-        size_t rem = len % W;
-        
-        for(size_t i = 0; i < n; ++i, src += W, dest += W)
-            set(dest, dest + W, other.get(src, src + W));
-        
-        set(dest, dest + rem, other.get(src, src + rem));
-        
-        dest += rem;
-        assert(dest - to == len);
+        assert(false && "Backwards copy still unimplemented");
+    }
+    
+    template<template<typename ...> class Container>
+    template<template<typename ...> class C>
+    void bitview<Container>::copy(bitview<C> const&src,
+                                  size_t src_begin, size_t src_end,
+                                  size_t dest_begin)
+    {
+        if(this == &src && src_begin < dest_begin)
+            copy_backward(src, src_begin, src_end, dest_begin);
+        else
+            copy_forward(src, src_begin, src_end, dest_begin);
     }
     
     // Sums the operands (with the eventual previous carry)
@@ -190,7 +202,7 @@ namespace bitvector
     
     template<template<typename ...> class Container>
     template<template<typename ...> class C>
-    bool bitview<Container>::set_sum(bitview<C> other,
+    bool bitview<Container>::set_sum(bitview<C> const&other,
                                      size_t begin, size_t end, size_t to)
     {
         if(is_empty_range(begin, end))
@@ -239,19 +251,6 @@ namespace bitvector
             value_type bits = bitfield(value, loc.llen, loc.llen + loc.hlen);
             set_bitfield(_container[loc.index + 1], 0, loc.hlen, bits);
         }
-    }
-    
-    template<template<typename ...> class Container>
-    void bitview<Container>::set(size_t i, bool bit)
-    {
-        assert(i < size());
-        
-        size_t word = i / W;
-        size_t index = i % W;
-        size_t mask = value_type(1) << index;
-        
-        _container[word] = (_container[word] & ~mask) |
-                            (value_type(bit) << index);
     }
     
 } // namespace bitvector

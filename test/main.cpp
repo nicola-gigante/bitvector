@@ -62,23 +62,21 @@ void test_word()
     size_t begin = 64 + 56;
     size_t end = 64 + 56 + 16;
     
-    w.set(5, false);
     w.set(begin, end, 12345);
-    w.set(195, true);
+    
+    w.set(208, 208 + 16, 42);
     
     // 0x3039 is 12345
-    assert(w.container()[0] == 0xFFFFFFFFFFFFFFDF);
+    assert(w.container()[0] == 0xFFFFFFFFFFFFFFFF);
     assert(w.container()[1] == 0x3900000000000000);
     assert(w.container()[2] == 0x30);
-    assert(w.container()[3] == 8);
+    assert(w.container()[3] == 0x00000000002a0000);
     
-    assert(not w.get(5));
     assert(w.get(begin, end) == 12345);
-    assert(w.get(195));
     
     bitview<std::vector> w2(256);
     
-    w2.set(w, begin, end, 42);
+    w2.copy(w, begin, end, 42);
 
     assert(w2.get(42, 42 + (end - begin)) == 12345);
     
@@ -100,6 +98,12 @@ void test_word()
     w2.set_sum(w, begin, end, 42);
     
     assert(w2.get(42, 42 + (end - begin)) == 24690);
+    
+    // Test self backwards copy
+    w.set(20, 40, 0xBABE);
+    w.copy(w, 20, 40, 30);
+    uint64_t value = w.get(30, 50);
+    assert(value == 0xBABE);
 }
 
 void test_bits()

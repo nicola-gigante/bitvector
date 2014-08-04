@@ -265,7 +265,7 @@ namespace bitvector
         
         range_reference const&operator=(const_range_reference const&ref) const
         {
-            _v._bits.set(ref._v._bits, ref._begin, ref._end, _begin);
+            _v._bits.copy(ref._v._bits, ref._begin, ref._end, _begin);
             
             return *this;
         }
