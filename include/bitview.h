@@ -45,7 +45,7 @@ namespace bitvector
         bitview() = default;
         
         bitview(size_t size)
-        : _container(required_container_size(size)) { }
+            : _container(required_container_size(size)) { }
         
         bitview(bitview const&) = default;
         bitview(bitview &&) = default;
@@ -78,12 +78,6 @@ namespace bitvector
         
         range_location_t locate(size_t begin, size_t end) const;
         
-        std::pair<value_type, bool>
-        sum_with_carry(value_type op1, value_type op2, bool carry, size_t width);
-        
-        template<template<typename ...> class C>
-        bool set_sum(bitview<C> const&other, size_t begin, size_t end, size_t to);
-        
         value_type get(size_t begin, size_t end) const;
         
         void set(size_t begin, size_t end, value_type value);
@@ -98,7 +92,8 @@ namespace bitvector
         
         template<template<typename ...> class C>
         void copy(bitview<C> const&src,
-                  size_t src_begin, size_t src_end, size_t dest_begin);
+                  size_t src_begin, size_t src_end,
+                  size_t dest_begin, size_t dest_end);
         
     private:
         container_type _container;
@@ -126,7 +121,7 @@ namespace bitvector
         if(is_empty_range(begin, end))
             return 0;
         
-        assert(end - begin <= W);
+        check_valid_range(begin, end, size());
         
         range_location_t loc = locate(begin, end);
         
@@ -161,80 +156,41 @@ namespace bitvector
     
     template<template<typename ...> class Container>
     template<template<typename ...> class C>
-    void bitview<Container>::copy_backward(bitview<C> const&src,
+    void bitview<Container>::copy_backward(bitview<C> const&srcbv,
                                            size_t src_begin, size_t src_end,
                                            size_t dest_begin)
     {
-        assert(false && "Backwards copy still unimplemented");
+        size_t len = (src_end - src_begin);
+        size_t rem = len % W;
+        
+        for(size_t step, src = src_begin + len, dest = dest_begin + len;
+            src - src_begin;
+            src -= step, dest -= step)
+        {
+            step = (src - src_begin) == rem ? rem : W;
+            
+            set(dest - step, dest, srcbv.get(src - step, src));
+        }
     }
     
     template<template<typename ...> class Container>
     template<template<typename ...> class C>
     void bitview<Container>::copy(bitview<C> const&src,
                                   size_t src_begin, size_t src_end,
-                                  size_t dest_begin)
+                                  size_t dest_begin, size_t dest_end)
     {
+        size_t srclen = src_end - src_begin;
+        size_t destlen = dest_end - dest_begin;
+        
+        if(destlen < srclen)
+            src_end = src_begin + destlen;
+        
         if(this == &src && src_begin < dest_begin)
             copy_backward(src, src_begin, src_end, dest_begin);
         else
             copy_forward(src, src_begin, src_end, dest_begin);
     }
-    
-    // Sums the operands (with the eventual previous carry)
-    // with given precision and returns the result as well as the carry
-    template<template<typename ...> class C>
-    auto bitview<C>::sum_with_carry(value_type op1, value_type op2,
-                                    bool carry, size_t width)
-    -> std::pair<value_type, bool>
-    {
-        assert(width <= W);
-        
-        value_type a = lowbits(op1, width);
-        value_type b = lowbits(op2, width);
-        value_type c = carry;
-        
-        value_type result = lowbits(a + b + c, width);
-        
-        carry = result < a || result < b || result < c;
-        
-        return { result, carry };
-    }
-    
-    template<template<typename ...> class Container>
-    template<template<typename ...> class C>
-    bool bitview<Container>::set_sum(bitview<C> const&other,
-                                     size_t begin, size_t end, size_t to)
-    {
-        if(is_empty_range(begin, end))
-            return false;
-        
-        size_t len   = end - begin;
-        size_t rem   = len % W;
-        
-        size_t src, dest, step;
-        bool carry = false;
-        
-        for(src = begin, dest = to;
-            src < end;
-            len -= step, src += step, dest += step)
-        {
-            step = len < W ? rem : W;
-            
-            value_type a = other.get(src, src + step);
-            value_type b = get(dest, dest + step);
-            
-            value_type result;
-            std::tie(result, carry) = sum_with_carry(a, b, carry, step);
-            set(dest, dest + step, result);
-        }
-        
-        assert(src == end);
-        assert(dest == to + (end - begin));
-        assert(len == 0);
-        
-        return carry;
-    }
-    
+       
     template<template<typename ...> class Container>
     void bitview<Container>::set(size_t begin, size_t end, value_type value)
     {

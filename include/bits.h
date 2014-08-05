@@ -35,10 +35,33 @@ typename = typename std::enable_if<(__VA_ARGS__)>::type
 
 namespace bitvector
 {
+    // Utility trait alias for std::conditional.
+    // Would be standard if we used C++14
+    template<bool C, typename T, typename F>
+    using conditional_t = typename std::conditional<C, T, F>::type;
+    
+    // Utility trait type to conditionally add constness to a type
+    template<bool C, typename T>
+    struct add_const_if {
+        using type = conditional_t<C, T const, T>;
+    };
+    
+    template<bool C, typename T>
+    using add_const_if_t = typename add_const_if<C, T>::type;
+    
     // Utility function to check for an empty range,
     // used through all the code
     constexpr bool is_empty_range(size_t begin, size_t end) {
         return begin >= end;
+    }
+    
+    // Utility function to assert a valid range
+    // Note that an empty range is always valid regardless of the value of
+    // the bounds used to represent it
+    inline bool check_valid_range(size_t begin, size_t end, size_t bound)
+    {
+        assert(is_empty_range(begin, end) || (begin < bound && end <= bound));
+        return true;
     }
     
     // Returns the bit size of the given type

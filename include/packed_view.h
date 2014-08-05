@@ -28,12 +28,16 @@ namespace bitvector
     class packed_view
     {
         static constexpr size_t W = bitview<Container>::W;
+        
+        template<bool>
+        class range_reference_base;
+        
     public:
         using value_type = typename bitview<Container>::value_type;
         using container_type = typename bitview<Container>::container_type;
         
         class range_reference;
-        class const_range_reference;
+        using const_range_reference = range_reference_base<true>;
         class item_reference;
         class const_item_reference;
         
@@ -106,6 +110,7 @@ namespace bitvector
         void set(size_t begin, size_t end, value_type value);
         
         void repeat(size_t begin, size_t end, value_type value);
+        void increment(size_t begin, size_t end, size_t n);
         size_t find(size_t begin, size_t end, value_type value) const;
         static std::string to_binary(const_range_reference const&ref,
                                      size_t sep, char ssep);
@@ -168,6 +173,25 @@ namespace bitvector
         }
     }
     
+    template<template<typename ...> class C>
+    void packed_view<C>::increment(size_t begin, size_t end, size_t n)
+    {
+        size_t fields_per_word = W / width();
+        size_t bits_per_word = fields_per_word * width(); // It's not useless
+        size_t len = (end - begin) * width();
+        size_t rem = len % bits_per_word;
+        
+        for(size_t step, p = begin * width();
+            p < end * width();
+            len -= step, p += step)
+        {
+            step = len < bits_per_word ? rem : bits_per_word;
+            
+            _bits.set(p, p + step,
+                      _bits.get(p, p + step) + field_mask() * n);
+        }
+    }
+    
     template<template<typename ...> class Container>
     size_t packed_view<Container>::find(size_t begin, size_t end,
                                         value_type value) const
@@ -205,7 +229,7 @@ namespace bitvector
         for(size_t i = begin, bits = 0; i < end; ++i, ++bits) {
             if(bits && bits % sep == 0)
                 s += ssep;
-            s += ref._v._bits.get(i) ? '1' : '0';
+            s += ref._v._bits.get(i, i + 1) ? '1' : '0';
         }
         
         std::reverse(s.begin(), s.end());
@@ -214,40 +238,56 @@ namespace bitvector
     }
     
     template<template<typename ...> class Container>
-    class packed_view<Container>::const_range_reference
+    template<bool IsConst>
+    class packed_view<Container>::range_reference_base
     {
         friend class packed_view;
         
-        const_range_reference(packed_view const&v, size_t begin, size_t end)
+        using pv_t = add_const_if_t<IsConst, packed_view>;
+        
+        range_reference_base(pv_t &v, size_t begin, size_t end)
             : _v(v), _begin(begin), _end(end) { }
         
     public:
-        const_range_reference(const_range_reference const&) = default;
+        range_reference_base(range_reference_base const&) = default;
         
         size_t find(value_type value) const
         {
             return _v.find(_begin, _end, value);
         }
         
-        friend std::string to_binary(const_range_reference const&ref,
-                                     size_t sep = 8, char ssep = ' ')
-        {
-            return packed_view::to_binary(ref, sep, ssep);
+        template<typename T, REQUIRES(std::is_integral<T>::value)>
+        T get() const {
+            return static_cast<T>(_v._bits.get(_begin, _begin + bitsize<T>()));
         }
         
-    private:
-        packed_view const&_v;
+        friend std::string to_binary(range_reference_base const&ref,
+                                     size_t sep = 8, char ssep = ' ')
+        {
+            const_range_reference r = { ref._v, ref._begin, ref._end };
+            return packed_view::to_binary(r, sep, ssep);
+        }
+        
+    protected:
+        pv_t &_v;
         size_t _begin;
         size_t _end;
     };
     
+    
     template<template<typename ...> class Container>
     class packed_view<Container>::range_reference
+        : public range_reference_base<false>
     {
         friend class packed_view;
         
+        using Base = range_reference_base<false>;
+        using Base::_v;
+        using Base::_begin;
+        using Base::_end;
+        
         range_reference(packed_view &v, size_t begin, size_t end)
-            : _v(v), _begin(begin), _end(end) { }
+            : Base(v, begin, end) { }
         
     public:
         range_reference(range_reference const&) = default;
@@ -265,7 +305,7 @@ namespace bitvector
         
         range_reference const&operator=(const_range_reference const&ref) const
         {
-            _v._bits.copy(ref._v._bits, ref._begin, ref._end, _begin);
+            _v._bits.copy(ref._v._bits, ref._begin, ref._end, _begin, _end);
             
             return *this;
         }
@@ -277,9 +317,16 @@ namespace bitvector
             return *this;
         }
         
-        range_reference const&operator+=(const_range_reference const&ref) const
+        range_reference const&operator+=(size_t n) const
         {
-            _v._bits.set_sum(ref._v._bits, ref._begin, ref._end, _begin);
+            _v.increment(_begin, _end, n);
+            
+            return *this;
+        }
+        
+        range_reference const&operator-=(size_t n) const
+        {
+            _v.increment(_begin, _end, - n);
             
             return *this;
         }
@@ -288,16 +335,11 @@ namespace bitvector
             return const_range_reference(*this).find(value);
         }
         
-        friend std::string to_binary(range_reference const&ref,
-                                     size_t sep = 8, char ssep = ' ')
-        {
-            return packed_view::to_binary(ref, sep, ssep);
-        }
-        
-    private:
-        packed_view &_v;
-        size_t _begin;
-        size_t _end;
+//        friend std::string to_binary(range_reference const&ref,
+//                                     size_t sep = 8, char ssep = ' ')
+//        {
+//            return packed_view::to_binary(ref, sep, ssep);
+//        }
     };
     
     template<template<typename ...> class Container>

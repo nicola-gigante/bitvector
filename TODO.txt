@@ -1,6 +1,7 @@
 
-Functionality:
- - Finish the refactoring to use the new packed_view
+Refactoring:
+ - Take care of the different size of the leaves
+ - Remove commented set_sum & co.
 
 Speed and space:
  - Switch to std::deque as the underlying storage for nodes and leaves,

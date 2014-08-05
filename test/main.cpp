@@ -51,6 +51,20 @@ void test_packed_view()
     assert(v(0,6).find(5) == 0);
     assert(v(0,6).find(25) == 2);
     assert(v(0,6).find(65) == 6);
+    
+    v(0, 3) += 10;
+    assert(v[0] == 20);
+    assert(v[1] == 30);
+    assert(v[2] == 40);
+    assert(v[3] == 40);
+    
+    v(0, 3) -= 10;
+    assert(v[0] == 10);
+    assert(v[1] == 20);
+    assert(v[2] == 30);
+    assert(v[3] == 40);
+    
+    std::cout << to_binary(v(0, 3)) << "\n";
 }
 
 void test_word()
@@ -76,34 +90,17 @@ void test_word()
     
     bitview<std::vector> w2(256);
     
-    w2.copy(w, begin, end, 42);
+    w2.copy(w, begin, end, 42, 42 + 16);
 
     assert(w2.get(42, 42 + (end - begin)) == 12345);
     
-    uint64_t result;
-    bool carry;
-
-    std::tie(result, carry) = w.sum_with_carry(200, 56, false, 8);
-    assert(result == 0);
-    assert(carry);
-    
-    std::tie(result, carry) = w.sum_with_carry(200, 56, false, 9);
-    assert(result == 256);
-    assert(not carry);
-    
-    std::tie(result, carry) = w.sum_with_carry(254, 1, true, 8);
-    assert(result == 0);
-    assert(carry);
-    
-    w2.set_sum(w, begin, end, 42);
-    
-    assert(w2.get(42, 42 + (end - begin)) == 24690);
-    
-    // Test self backwards copy
+    // Test self backwards copy with overlap
+    w.set(50, 60, 42);
     w.set(20, 40, 0xBABE);
-    w.copy(w, 20, 40, 30);
-    uint64_t value = w.get(30, 50);
-    assert(value == 0xBABE);
+    w.copy(w, 20, 50, 30, 50);
+
+    assert(w.get(30, 50) == 0xBABE);
+    assert(w.get(50, 60) == 42);
 }
 
 void test_bits()
