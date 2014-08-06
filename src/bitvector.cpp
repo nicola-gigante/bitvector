@@ -33,6 +33,7 @@ namespace bv
     using std::pow;
     using std::min;
     using std::max;
+    using std::log10;
     
     /*
      * Private implementation class for bitvector
@@ -338,7 +339,8 @@ namespace bv
             assert(is_node());
             assert(begin >= end || begin < degree());
             assert(begin >= end || end <= degree());
-            return _vector.sizes(_index * degree() + begin, _index * degree() + end);
+            return _vector.sizes(_index * degree() + begin,
+                                 _index * degree() + end);
         }
         
         // Word of the size fields.
@@ -359,7 +361,8 @@ namespace bv
             assert(is_node());
             assert(begin >= end || begin < degree());
             assert(begin >= end || end <= degree());
-            return _vector.ranks(_index * degree() + begin, _index * degree() + end);
+            return _vector.ranks(_index * degree() + begin,
+                                 _index * degree() + end);
         }
         
         // Word of the rank fields
@@ -397,31 +400,28 @@ namespace bv
                   << "Rank: " << t.rank() << "\n"
                   << "Contents: |" << to_binary(t.leaf(), 8, '|') << "|";
             } else {
-                const int counter_width = int(t._vector.counter_width);
-                const int pointer_width = int(t._vector.pointer_width);
+                int field_width = std::max(log10(t.size()),
+                                           log10(t._vector.used_leaves())) + 4;
                 
                 o << "Node at index:      " << t.index() << "\n"
                   << "Total size:         " << t.size() << "\n"
                   << "Total rank:         " << t.rank() << "\n"
                   << "Number of children: " << t.nchildren() << "\n";
                 
-                o << "Sizes: |";
+                o << "Sizes: |" << std::setw(field_width + 1) << "|";
                 for(size_t i = t.degree() - 1; i > 0; --i)
-                    o << std::setw(counter_width) << t.sizes(i) << "|";
-                o << std::setw(counter_width) << t.sizes(0) << "|\n";
-                o << "       |" << to_binary(t.sizes(), counter_width, '|') << "|\n";
+                    o << std::setw(field_width) << t.sizes(i) << "|";
+                o << "\n";
                 
-                o << "Ranks: |";
+                o << "Ranks: |" << std::setw(field_width + 1) << "|";
                 for(size_t i = t.degree() - 1; i > 0; --i)
-                    o << std::setw(counter_width) << t.ranks(i) << "|";
-                o << std::setw(counter_width) << t.ranks(0) << "|\n";
-                o << "       |" << to_binary(t.ranks(), counter_width, '|') << "|\n";
+                    o << std::setw(field_width) << t.ranks(i) << "|";
+                o << "\n";
                 
                 o << "\nPtrs:  |";
                 for(size_t i = t.degree(); i > 0; --i)
-                    o << std::setw(pointer_width) << t.pointers(i) << "|";
-                o << std::setw(pointer_width) << t.pointers(0) << "|\n";
-                o << "       |" << to_binary(t.pointers(), pointer_width, '|') << "|\n";
+                    o << std::setw(field_width) << t.pointers(i) << "|";
+                o << "\n";
                 
                 if(t.height() == 1) {
                     o << "Leaves: " << t.nchildren() << "\n";
@@ -430,8 +430,10 @@ namespace bv
                         if(!t.pointers(i))
                             o << "[x]: null\n";
                         else
-                            o << "[" << t.child(i).index() << "], |" << t.child(i).size() << "|: "
-                            << to_binary(t.child(i).leaf(), 8, '|') << "\n";
+                            o << "#" << i
+                              << ", [" << t.child(i).index() << "], |"
+                              << t.child(i).size() << "|: "
+                              << to_binary(t.child(i).leaf(), 8, '|') << "\n";
                     }
                 }
             }
@@ -708,11 +710,17 @@ namespace bv
                 // redistribute
                 redistribute_bits(t, begin, end, count);
                 
+                std::cout << t << "\n";
+                
                 // It's important to stay in shape and not get too fat
-                for(size_t k = begin; k < end; ++k)
-                    assert(size < (leaves_buffer * (leaf_bits - leaves_buffer)) ||
-                           t.child(k).size() >= (leaves_buffer * (leaf_bits - leaves_buffer)) /
-                           (leaves_buffer + 1));
+                if(size >= (leaves_buffer * (leaf_bits - leaves_buffer))) {
+                    for(size_t k = begin; k < end; ++k) {
+                        size_t minsize = (leaves_buffer * (leaf_bits - leaves_buffer)) /
+                                         (leaves_buffer + 1);
+                        size_t size = t.child(k).size();
+                        assert(size >= minsize);
+                    }
+                }
                 
                 // Search again where to insert the bit
                 std::tie(child, new_index) = t.find_insert_point(index);
@@ -818,6 +826,12 @@ namespace bv
     // This function clears the counters relative to children
     // in the range [begin, end), as if the respective subtrees were empty.
     // Pointers and subtrees are not touched.
+    // Note that at the end of this function, the subtree_ref is in an
+    // inconsistent state regarding its size, so we have to be careful to
+    // not call functions such as nchildren() and is_full().
+    // This function is used only in redistribute_bits() and redistribute_keys(),
+    // to prepare the redistribution. In these functions we already know how
+    // many children we want to iterate on, so we don't need nchildren()
     //
     void bt_impl::clear_children_counters(subtree_ref t,
                                           size_t begin, size_t end) const
@@ -828,10 +842,14 @@ namespace bv
         size_t prev_size = begin > 0 ? t.sizes(begin - 1) : 0;
         size_t prev_rank = begin > 0 ? t.ranks(begin - 1) : 0;
         
+        assert(last_size >= prev_size);
+        assert(last_rank >= prev_rank);
+        
         t.sizes(begin, keys_end)   = prev_size;
         t.ranks(begin, keys_end)   = prev_rank;
-        t.sizes(keys_end, degree) -= last_size;
-        t.ranks(keys_end, degree) -= last_rank;
+        
+        t.sizes(keys_end, degree) -= last_size - prev_size;
+        t.ranks(keys_end, degree) -= last_rank - prev_size;
     }
     
     // FIXME: rewrite using a temporary space of two words instead
@@ -994,20 +1012,24 @@ namespace bv
     
     void bitvector::test(std::ostream &stream)
     {
-        bitvector v(100000, 128);
+        using std::chrono::high_resolution_clock;
+        using std::chrono::duration_cast;
+        using std::chrono::milliseconds;
+        
+        bitvector v(100000, 256);
         stream << v << "\n";
         
-        size_t nbits = 147;
+        size_t nbits = 100000;
         
-        auto t1 = std::chrono::high_resolution_clock::now();
+        auto t1 = high_resolution_clock::now();
         for(size_t i = 0; i < nbits; ++i)
             v.insert(i, true);
         v.insert(nbits, true);
-        auto t2 = std::chrono::high_resolution_clock::now();
+        auto t2 = high_resolution_clock::now();
         
-        std::cout << "Inserted " << nbits << " bits in " <<
-        float(std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()) / 1000
-        << "s\n";
+        stream << "Inserted " << nbits << " bits in "
+               << float(duration_cast<milliseconds>(t2 - t1).count()) / 1000
+               << "s\n";
         
 #if 0
         stream << v._impl->root() << "\n";
