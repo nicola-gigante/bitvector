@@ -957,7 +957,7 @@ namespace bv
             }
             
             if(t.pointers(i) == 0)
-                t.insert_child(i);
+                t.pointers(i) = alloc_node();
             
             // Clear the node
             t.child(i).sizes() = 0;

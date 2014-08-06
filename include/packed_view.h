@@ -109,8 +109,13 @@ namespace bv
         value_type get(size_t begin, size_t end) const;
         void set(size_t begin, size_t end, value_type value);
         
+        enum overflow_opt {
+            may_overflow,
+            cant_overflow
+        };
+        
+        void increment(size_t begin, size_t end, size_t n, overflow_opt opt);
         void repeat(size_t begin, size_t end, value_type value);
-        void increment(size_t begin, size_t end, size_t n);
         size_t find(size_t begin, size_t end, value_type value) const;
         static std::string to_binary(const_range_reference const&ref,
                                      size_t sep, char ssep);
@@ -176,7 +181,8 @@ namespace bv
     }
     
     template<template<typename ...> class C>
-    void packed_view<C>::increment(size_t begin, size_t end, size_t n)
+    void packed_view<C>::increment(size_t begin, size_t end,
+                                   size_t n, overflow_opt opt)
     {
         size_t fields_per_word = W / width();
         size_t bits_per_word = fields_per_word * width(); // It's not useless
@@ -189,8 +195,13 @@ namespace bv
         {
             step = len < bits_per_word ? rem : bits_per_word;
             
-            _bits.set(p, p + step,
-                      lowbits(_bits.get(p, p + step) + field_mask() * n, step));
+            value_type result = _bits.get(p, p + step) +
+                                lowbits(field_mask() * n, step);
+            
+            if(opt == cant_overflow)
+                ensure_bitsize(result, step);
+            
+            _bits.set(p, p + step, lowbits(result, step));
         }
     }
     
@@ -329,14 +340,14 @@ namespace bv
         
         range_reference const&operator+=(size_t n) const
         {
-            _v.increment(_begin, _end, n);
+            _v.increment(_begin, _end, n, cant_overflow);
             
             return *this;
         }
         
         range_reference const&operator-=(size_t n) const
         {
-            _v.increment(_begin, _end, - n);
+            _v.increment(_begin, _end, - n, may_overflow);
             
             return *this;
         }
