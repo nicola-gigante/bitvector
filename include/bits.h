@@ -18,6 +18,7 @@
 #define BITVECTOR_BITS_H
 
 #include <cstddef>
+#include <climits>
 #include <cstdint>
 #include <utility>
 #include <memory>
@@ -27,13 +28,10 @@
 #include <string>
 #include <type_traits>
 
-// FIXME: remove this header when finished the debugging
-#include <iostream>
-
 #define REQUIRES(...) \
 typename = typename std::enable_if<(__VA_ARGS__)>::type
 
-namespace bitvector
+namespace bv
 {
     // Utility trait alias for std::conditional.
     // Would be standard if we used C++14
@@ -205,5 +203,5 @@ namespace bitvector
         std::reverse(s.begin(), s.end());
         return s;
     }
-} // namespace bitvector
+} // namespace bv
 #endif

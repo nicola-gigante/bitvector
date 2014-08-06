@@ -22,7 +22,7 @@
 
 #include <string>
 
-namespace bitvector
+namespace bv
 {
     template<template<typename ...> class Container>
     class packed_view
@@ -250,6 +250,7 @@ namespace bitvector
         
     public:
         range_reference_base(range_reference_base const&) = default;
+        range_reference_base &operator=(range_reference_base const&) = delete;
         
         size_t find(value_type value) const
         {
@@ -258,7 +259,8 @@ namespace bitvector
         
         template<typename T, REQUIRES(std::is_integral<T>::value)>
         T get() const {
-            return static_cast<T>(_v._bits.get(_begin, _begin + bitsize<T>()));
+            return T(_v._bits.get(_begin,
+                                  std::min(_end, _begin + bitsize<T>())));
         }
         
         friend std::string to_binary(range_reference_base const&ref,
@@ -305,14 +307,16 @@ namespace bitvector
         
         range_reference const&operator=(const_range_reference const&ref) const
         {
-            _v._bits.copy(ref._v._bits, ref._begin, ref._end, _begin, _end);
+            _v._bits.copy(ref._v._bits,
+                          ref._begin * ref._v.width(), ref._end * ref._v.width(),
+                          _begin * _v.width(), _end * _v.width());
             
             return *this;
         }
         
         range_reference const&operator=(range_reference const&ref) const
         {
-            operator=(const_range_reference(*this));
+            operator=(const_range_reference(ref));
             
             return *this;
         }
@@ -334,12 +338,6 @@ namespace bitvector
         size_t find(value_type value) const {
             return const_range_reference(*this).find(value);
         }
-        
-//        friend std::string to_binary(range_reference const&ref,
-//                                     size_t sep = 8, char ssep = ' ')
-//        {
-//            return packed_view::to_binary(ref, sep, ssep);
-//        }
     };
     
     template<template<typename ...> class Container>
@@ -401,6 +399,6 @@ namespace bitvector
         size_t _index;
     };
     
-} // namespace bitvector
+} // namespace bv
 
 #endif

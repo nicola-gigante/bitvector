@@ -19,9 +19,12 @@
 #include "bits.h"
 #include "packed_view.h"
 
-#include <cstddef>
+#include <vector>
+#include <cmath>
+#include <type_traits>
+#include <iomanip>
 
-namespace bitvector
+namespace bv
 {
     using std::floor;
     using std::ceil;
@@ -178,7 +181,7 @@ namespace bitvector
                conditional_t<Const, typename packed_data::const_range_reference,
                                     typename packed_data::range_reference>;
         
-        using item_reference = typename
+        using item_reference =
                 conditional_t<Const, typename packed_data::const_item_reference,
                                      typename packed_data::item_reference>;
         
@@ -231,8 +234,8 @@ namespace bitvector
         
         // The root node is at index zero and top height
         bool is_root() const {
-            assert(_index != 0 || _height == _vector._height);
-            assert(_height != _vector._height || _index == 0);
+            assert(_index != 0 || _height == _vector.height);
+            assert(_height != _vector.height || _index == 0);
             
             return _index == 0;
         }
@@ -346,7 +349,9 @@ namespace bitvector
         // NOTE: This is NOT the size of the subtree rooted at index k.
         //       To get that, use n.child(k).size()
         //
-        item_reference sizes(size_t k) const { return _vector.sizes[k]; }
+        item_reference sizes(size_t k) const {
+            return _vector.sizes[_index * degree() + k];
+        }
         
         // Word composed by the rank fields in the interval [begin, end)
         range_reference ranks(size_t begin, size_t end) const
@@ -361,7 +366,9 @@ namespace bitvector
         range_reference ranks() const { return ranks(0, degree()); }
         
         // Value of the rank field at index k
-        item_reference ranks(size_t k) const { return _vector.ranks[k]; }
+        item_reference ranks(size_t k) const {
+            return _vector.ranks[_index * degree() + k];
+        }
         
         // Word composed by the pointer fields in the interval [begin, end)
         range_reference pointers(size_t begin, size_t end) const
@@ -377,42 +384,40 @@ namespace bitvector
         range_reference pointers() const { return pointers(0, degree() + 1); }
         
         // Value of the pointer field at index k
-        item_reference pointers(size_t k) const { return _vector.pointers[k]; }
+        item_reference pointers(size_t k) const {
+            return _vector.pointers[_index * (degree() + 1) + k];
+        }
         
         // Input / Output of nodes for debugging
         friend std::ostream &operator<<(std::ostream &o, subtree_ref_base t)
         {
             if(t.is_leaf()) {
                 o << "Leaf at index: " << t.index() << "\n"
-                << "Size: " << t.size() << "\n"
-                << "Rank: " << t.rank() << "\n"
-                << "Contents: |" << to_binary(t.leaf(), 8, '|') << "|";
+                  << "Size: " << t.size() << "\n"
+                  << "Rank: " << t.rank() << "\n"
+                  << "Contents: |" << to_binary(t.leaf(), 8, '|') << "|";
             } else {
                 const int counter_width = int(t._vector.counter_width);
                 const int pointer_width = int(t._vector.pointer_width);
-                const int node_width    = int(t._vector.node_width);
                 
                 o << "Node at index:      " << t.index() << "\n"
-                << "Total size:         " << t.size() << "\n"
-                << "Total rank:         " << t.rank() << "\n"
-                << "Number of children: " << t.nchildren() << "\n";
+                  << "Total size:         " << t.size() << "\n"
+                  << "Total rank:         " << t.rank() << "\n"
+                  << "Number of children: " << t.nchildren() << "\n";
                 
                 o << "Sizes: |";
-                o << std::setw(node_width % counter_width) << "" << "|";
                 for(size_t i = t.degree() - 1; i > 0; --i)
                     o << std::setw(counter_width) << t.sizes(i) << "|";
                 o << std::setw(counter_width) << t.sizes(0) << "|\n";
                 o << "       |" << to_binary(t.sizes(), counter_width, '|') << "|\n";
                 
                 o << "Ranks: |";
-                o << std::setw(node_width % counter_width) << "" << "|";
                 for(size_t i = t.degree() - 1; i > 0; --i)
                     o << std::setw(counter_width) << t.ranks(i) << "|";
                 o << std::setw(counter_width) << t.ranks(0) << "|\n";
                 o << "       |" << to_binary(t.ranks(), counter_width, '|') << "|\n";
                 
                 o << "\nPtrs:  |";
-                o << std::setw(int(node_width - pointer_width * (t.degree() + 1) + 1)) << "" << "|";
                 for(size_t i = t.degree(); i > 0; --i)
                     o << std::setw(pointer_width) << t.pointers(i) << "|";
                 o << std::setw(pointer_width) << t.pointers(0) << "|\n";
@@ -512,7 +517,7 @@ namespace bitvector
             if(is_node()) {
                 r._index = _vector.alloc_node();
                 
-                r.sizes()    = sizes();
+                r.sizes()  = sizes();
                 r.ranks()    = ranks();
                 r.pointers() = pointers();
             } else {
@@ -548,7 +553,7 @@ namespace bitvector
         // Total number of leaves to allocate space for
         size_t leaves_count = ceil(capacity /
                                    ((leaves_buffer *
-                                     (node_width - leaves_buffer)) /
+                                     (leaf_bits - leaves_buffer)) /
                                     (leaves_buffer + 1)));
         
         size_t minimum_degree = nodes_buffer;
@@ -588,17 +593,11 @@ namespace bitvector
      */
     size_t bt_impl::alloc_node() {
         assert(free_node < (sizes.size() / degree));
-        if(free_node == (sizes.size() / degree) - 1)
-            std::cout << "Warning: nodes memory exhausted\n";
         return free_node++;
     }
     
     size_t bt_impl::alloc_leaf() {
-        assert(free_leaf < leaves.size());
-        
-        if(free_leaf == leaves.size() - 1)
-            std::cout << "Warning: leaves memory exhausted\n";
-        
+        assert(free_leaf < leaves.size());        
         return free_leaf++;
     }
     
@@ -876,9 +875,8 @@ namespace bitvector
             if(t.pointers(i) == 0)
                 t.insert_child(i);
             
-            // Take the bits out of the buffer and count the rank
-            // and put them back into the leaf
-            word_t<W> leaf = bits(p, p + n);
+            // Take the bits out of the buffer put them back into the leaf
+            leaf_t leaf = bits(p, p + n).get<leaf_t>();
             t.child(i).leaf() = leaf;
             
             // Increment the counters
@@ -902,7 +900,7 @@ namespace bitvector
         size_t keys_per_node = count / b;
         size_t rem           = count % b;
         
-        assert(b == _nodes_buffer || b == _nodes_buffer + 1);
+        assert(b == nodes_buffer || b == nodes_buffer + 1);
         
         struct pointer {
             size_t size;
@@ -911,7 +909,7 @@ namespace bitvector
         };
         
         std::vector<pointer> pointers;
-        pointers.reserve(_nodes_buffer * (degree() + 1));
+        pointers.reserve(nodes_buffer * (degree + 1));
         
         for(size_t i = begin; i != end; ++i) {
             if(t.pointers(i) != 0) {
@@ -949,15 +947,15 @@ namespace bitvector
                 size_t r = pointers[p + j].rank;
                 
                 t.child(i).pointers(j) = pointers[p + j].ptr;
-                t.child(i).sizes(j, degree()) += index_mask() * s;
-                t.child(i).ranks(j, degree()) += index_mask() * r;
+                t.child(i).sizes(j, degree) += s;
+                t.child(i).ranks(j, degree) += r;
                 
                 childsize += s;
                 childrank += r;
             }
             
-            t.sizes(i, degree()) += index_mask() * childsize;
-            t.ranks(i, degree()) += index_mask() * childrank;
+            t.sizes(i, degree) += childsize;
+            t.ranks(i, degree) += childrank;
             
             count -= n;
             p += n;
@@ -973,6 +971,8 @@ namespace bitvector
     bitvector::bitvector(size_t capacity, size_t node_width)
         : _impl(new bt_impl(capacity, node_width)) { }
     
+    bitvector::~bitvector() = default;
+    
     bitvector::bitvector(bitvector const&other)
         : _impl(new bt_impl(*other._impl)) { }
     
@@ -986,6 +986,49 @@ namespace bitvector
     
     bool bitvector::access(size_t index) const {
         return _impl->access(_impl->root(), index);
+    }
+    
+    void bitvector::insert(size_t index, bool bit) {
+        _impl->insert(_impl->root(), index, bit);
+    }
+    
+    void bitvector::test(std::ostream &stream)
+    {
+        bitvector v(100000, 128);
+        stream << v << "\n";
+        
+        size_t nbits = 147;
+        
+        auto t1 = std::chrono::high_resolution_clock::now();
+        for(size_t i = 0; i < nbits; ++i)
+            v.insert(i, true);
+        v.insert(nbits, true);
+        auto t2 = std::chrono::high_resolution_clock::now();
+        
+        std::cout << "Inserted " << nbits << " bits in " <<
+        float(std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count()) / 1000
+        << "s\n";
+        
+#if 0
+        stream << v._impl->root() << "\n";
+        if(v._impl->root().height() > 1) {
+            for(size_t i = 0; i < v._impl->root().nchildren(); ++i) {
+                if(v._impl->root().pointers(i) == 0)
+                    stream << "Child " << i << " is null\n";
+                else
+                    stream << v._impl->root().child(i) << "\n";
+            }
+        }
+        
+        for(size_t i = 0; i < nbits; ++i) {
+            if(i && i % 8 == 0)
+                stream << " ";
+            if(i && i % 64 == 0)
+                stream << "\n";
+            stream << v.access(i);
+        }
+        stream << "\n";
+#endif
     }
     
     // Debugging output pane

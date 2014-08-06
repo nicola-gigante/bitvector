@@ -20,21 +20,10 @@
 #include "bits.h"
 #include "packed_view.h"
 
-#include <cstddef>
-#include <cmath>
 #include <memory>
-#include <type_traits>
-#include <stdexcept>
-#include <vector>
-#include <atomic>
-
 #include <ostream>
-#include <iomanip>
 
-// FIXME: remove this include after having finished the debugging
-#include <iostream>
-
-namespace bitvector
+namespace bv
 {
     struct bt_impl;
     class bitvector
@@ -44,6 +33,9 @@ namespace bitvector
          * Constructors, copies and moves...
          */
         bitvector(size_t N, size_t W = 256);
+        // Destructor must be out-of-line to use
+        // an unique_ptr of an incomplete type
+        ~bitvector();
 
         bitvector(bitvector const&);
         bitvector(bitvector &&) = default;
@@ -61,41 +53,15 @@ namespace bitvector
          * Data operations
          */
         bool access(size_t index) const;
+        void insert(size_t index, bool bit);
         
-        // Debugging output
+        // Debugging
+        static void test(std::ostream &stream);
         friend std::ostream &operator<<(std::ostream &s, bitvector const&v);
         
     private:
         std::unique_ptr<bt_impl> _impl;
     };
-    
-#if 0
-    class bt_impl
-    {
-    public:
-        
-        size_t leaves_minimum_size() const {
-            return (_leaves_buffer * (_node_width - _leaves_buffer)) /
-                   (_leaves_buffer + 1);
-        }
-        
-        void insert(size_t index, bool bit) { insert(root(), index, bit); }
-        
-        
-        
-    private:
-        
-        
-        
-        
-        
-        
-    private:
-        
-    };
-    
-    
-#endif
 }
 
 #endif // BITVECTOR_H

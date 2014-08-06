@@ -14,17 +14,21 @@
  * limitations under the License.
  */
 
-//#include "bitvector.h"
 #include "bitview.h"
 #include "packed_view.h"
-//#include "bitvector.h"
+#include "bitvector.h"
 
 #include <vector>
 #include <array>
 
 #include <iostream>
 
-using namespace bitvector;
+using namespace bv;
+
+void test_bitvector()
+{
+    bitvector::test(std::cout);
+}
 
 void test_packed_view()
 {
@@ -64,7 +68,21 @@ void test_packed_view()
     assert(v[2] == 30);
     assert(v[3] == 40);
     
-    std::cout << to_binary(v(0, 3)) << "\n";
+    assert(to_binary(v(0, 3), 12) == "000000011110 000000010100 000000001010");
+    
+    // Test the constness and refs conversions
+    packed_view<std::vector>::range_reference r = v(3,6);
+    packed_view<std::vector>::const_range_reference cr = v(0, 3);
+    static_assert(not std::is_convertible<decltype(cr), decltype(r)>::value,
+                  "Something wrong with reference constness");
+    static_assert(std::is_convertible<decltype(r), decltype(cr)>::value,
+                  "Something wrong with reference constness");
+    
+    // Test range assignment
+    r = cr;
+    assert(v[3] == 10);
+    assert(v[4] == 20);
+    assert(v[5] == 30);
 }
 
 void test_word()
@@ -124,6 +142,7 @@ int main()
     test_bits();
     test_word();
     test_packed_view();
+    test_bitvector();
     
     return 0;
 }

@@ -31,7 +31,7 @@
 // FIXME: remove this header when finished debugging
 #include <iostream>
 
-namespace bitvector
+namespace bv
 {
     template<template<typename ...> class Container>
     class bitview
@@ -209,6 +209,6 @@ namespace bitvector
         }
     }
     
-} // namespace bitvector
+} // namespace bv
 
 #endif
