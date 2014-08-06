@@ -22,6 +22,8 @@
 #include <vector>
 #include <cmath>
 #include <type_traits>
+#include <chrono>
+#include <random>
 #include <iomanip>
 
 namespace bv
@@ -49,11 +51,12 @@ namespace bv
         class subtree_ref;
         using subtree_const_ref = subtree_ref_base<true>;
         
-        using leaf_t = uint64_t;
-        static constexpr size_t leaf_bits = bitsize<leaf_t>();
-        
         using packed_data = packed_view<std::vector>;
         using field_type = packed_data::value_type;
+        
+        using leaf_t = field_type;
+        static constexpr size_t leaf_bits = bitsize<leaf_t>();
+        
         
         /*
          * Public relations
@@ -143,7 +146,7 @@ namespace bv
         
         // Find children for the redistribution
         std::tuple<size_t, size_t, size_t>
-        find_adjacent_children(subtree_ref t, size_t child);
+        find_adjacent_children(subtree_const_ref t, size_t child);
         
         // Reset of children counters of a node, needed by insert() & co.
         void clear_children_counters(subtree_ref t,
@@ -411,17 +414,17 @@ namespace bv
                 o << "Sizes: |" << std::setw(field_width + 1) << "|";
                 for(size_t i = t.degree() - 1; i > 0; --i)
                     o << std::setw(field_width) << t.sizes(i) << "|";
-                o << "\n";
+                o << std::setw(field_width) << t.sizes(0) << "|\n";
                 
                 o << "Ranks: |" << std::setw(field_width + 1) << "|";
                 for(size_t i = t.degree() - 1; i > 0; --i)
                     o << std::setw(field_width) << t.ranks(i) << "|";
-                o << "\n";
+                o << std::setw(field_width) << t.ranks(0) << "|\n";
                 
                 o << "\nPtrs:  |";
                 for(size_t i = t.degree(); i > 0; --i)
                     o << std::setw(field_width) << t.pointers(i) << "|";
-                o << "\n";
+                o << std::setw(field_width) << t.pointers(0) << "|\n";
                 
                 if(t.height() == 1) {
                     o << "Leaves: " << t.nchildren() << "\n";
@@ -710,8 +713,6 @@ namespace bv
                 // redistribute
                 redistribute_bits(t, begin, end, count);
                 
-                std::cout << t << "\n";
-                
                 // It's important to stay in shape and not get too fat
                 if(size >= (leaves_buffer * (leaf_bits - leaves_buffer))) {
                     for(size_t k = begin; k < end; ++k) {
@@ -719,6 +720,9 @@ namespace bv
                                          (leaves_buffer + 1);
                         size_t size = t.child(k).size();
                         assert(size >= minsize);
+                        // Silence unused warnings in release mode
+                        (void)minsize;
+                        (void)size;
                     }
                 }
                 
@@ -778,15 +782,15 @@ namespace bv
     // - The count of slots contained in total in the found leaves
     //   I repeat: the number of slots, not the number of free slots
     std::tuple<size_t, size_t, size_t>
-    bt_impl::find_adjacent_children(subtree_ref t, size_t child)
+    bt_impl::find_adjacent_children(subtree_const_ref t, size_t child)
     {
         const bool is_leaf = t.child(child).is_leaf();
         const size_t buffer = is_leaf ? leaves_buffer : nodes_buffer;
         const size_t max_count = is_leaf ? leaf_bits : (degree + 1);
         const auto count = [&](size_t i) {
             return t.pointers(i) == 0 ? max_count :
-            is_leaf            ? leaf_bits - t.child(i).size() :
-                                 (degree + 1) - t.child(i).nchildren();
+                   is_leaf            ? leaf_bits - t.child(i).size() :
+                                        (degree + 1) - t.child(i).nchildren();
         };
         
         size_t begin = child >= buffer ? child - buffer + 1 : 0;
@@ -802,7 +806,7 @@ namespace bv
         maxfreeslots = freeslots;
         
         // Slide the window
-        while(begin < child && end < degree + 1)
+        while(begin < child && end < t.nchildren())
         {
             freeslots = freeslots - count(begin) + count(end - 1);
             
@@ -866,11 +870,12 @@ namespace bv
         // Here we use the existing abstraction of packed_view
         // to accumulate all the bits into a temporary buffer, and
         // subsequently redistribute them to the leaves
-        packed_data bits(1, count);
+        bitview<std::vector> bits(count);
         
         for(size_t i = begin, p = 0; i < end; ++i) {
             if(t.pointers(i) != 0) {
-                bits(p, p + t.child(i).size()) = t.child(i).leaf();
+                leaf_t leaf = t.child(i).leaf();
+                bits.set(p, p + t.child(i).size(), leaf);
                 p += t.child(i).size();
             }
         }
@@ -893,8 +898,10 @@ namespace bv
             if(t.pointers(i) == 0)
                 t.insert_child(i);
             
+            static_assert(std::is_same<leaf_t, field_type>::value,
+                          "Fix this when leaf_t gets generalized");
             // Take the bits out of the buffer put them back into the leaf
-            leaf_t leaf = bits(p, p + n).get<leaf_t>();
+            leaf_t leaf = bits.get(p, p + n);
             t.child(i).leaf() = leaf;
             
             // Increment the counters
@@ -1014,25 +1021,34 @@ namespace bv
     {
         using std::chrono::high_resolution_clock;
         using std::chrono::duration_cast;
-        using std::chrono::milliseconds;
+        using std::chrono::duration;
         
-        bitvector v(100000, 256);
+        bitvector v(100000, 128);
         stream << v << "\n";
         
         size_t nbits = 100000;
         
+        std::mt19937 engine(42);
+        std::vector<std::pair<size_t, bool>> indexes;
+        bool b = true;
+        for(size_t i = 0; i < nbits; ++i) {
+            std::uniform_int_distribution<size_t> dist(0, i);
+#if 1
+            indexes.emplace_back(dist(engine), b);
+#else
+            indexes.emplace_back(i, b);
+#endif
+            b = !b;
+        }
+        
         auto t1 = high_resolution_clock::now();
-        for(size_t i = 0; i < nbits; ++i)
-            v.insert(i, true);
-        v.insert(nbits, true);
+        for(size_t i = 0; i < nbits - 1; ++i)
+            v.insert(indexes.at(i).first, indexes.at(i).second);
+        v.insert(indexes.at(nbits - 1).first, indexes.at(nbits - 1).second);
         auto t2 = high_resolution_clock::now();
         
-        stream << "Inserted " << nbits << " bits in "
-               << float(duration_cast<milliseconds>(t2 - t1).count()) / 1000
-               << "s\n";
-        
-#if 0
-        stream << v._impl->root() << "\n";
+#if 1
+        stream << "\n" << v._impl->root() << "\n";
         if(v._impl->root().height() > 1) {
             for(size_t i = 0; i < v._impl->root().nchildren(); ++i) {
                 if(v._impl->root().pointers(i) == 0)
@@ -1041,7 +1057,9 @@ namespace bv
                     stream << v._impl->root().child(i) << "\n";
             }
         }
+#endif
         
+#if 1
         for(size_t i = 0; i < nbits; ++i) {
             if(i && i % 8 == 0)
                 stream << " ";
@@ -1049,8 +1067,11 @@ namespace bv
                 stream << "\n";
             stream << v.access(i);
         }
-        stream << "\n";
+        stream << "\n\n";
 #endif
+      
+        double total = duration_cast<duration<double, std::ratio<1>>>(t2 - t1).count();
+        stream << "Inserted " << nbits << " bits in " << total << "s\n";
     }
     
     // Debugging output pane

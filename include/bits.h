@@ -175,11 +175,18 @@ namespace bv
     template<typename T, REQUIRES(std::is_integral<T>::value)>
     T insert_bit(T word, size_t index, bool bit)
     {
-        const size_t W = sizeof(T) * 8;
-        
-        return static_cast<T>(bit) << index            |
-               (bitfield(word, index, W) << index + 1) |
+        return static_cast<T>(bit) << index                       |
+               (bitfield(word, index, bitsize<T>()) << index + 1) |
                 bitfield(word, 0, index);
+    }
+    
+    // Utility function to assert that a word fits in the given bit width.
+    // In other words, the value is less than 2^w - 1
+    template<typename T, REQUIRES(std::is_integral<T>::value)>
+    bool ensure_bitsize(T value, size_t width)
+    {
+        assert(lowbits(value, width) == value);
+        return true;
     }
     
     /*

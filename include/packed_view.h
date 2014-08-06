@@ -161,7 +161,9 @@ namespace bv
         size_t len = (end - begin) * width();
         size_t rem = len % bits_per_word;
         
-        value_type value = field_mask() * lowbits(pattern, width());
+        ensure_bitsize(pattern, width());
+        
+        value_type value = field_mask() * pattern;
         
         for(size_t step, p = begin * width();
             p < end * width();
@@ -169,7 +171,7 @@ namespace bv
         {
             step = len < bits_per_word ? rem : bits_per_word;
             
-            _bits.set(p, p + step, value);
+            _bits.set(p, p + step, lowbits(value, step));
         }
     }
     
@@ -188,7 +190,7 @@ namespace bv
             step = len < bits_per_word ? rem : bits_per_word;
             
             _bits.set(p, p + step,
-                      _bits.get(p, p + step) + field_mask() * n);
+                      lowbits(_bits.get(p, p + step) + field_mask() * n, step));
         }
     }
     
@@ -200,7 +202,7 @@ namespace bv
         size_t len = end - begin;
         size_t rem = len % fields_per_word;
         
-        value = field_mask() * lowbits(value, width() - 1);
+        ensure_bitsize(value, width() - 1);
         
         size_t result = len;
         for(size_t step, p = begin; p < end; len -= step, p += step)
@@ -209,7 +211,8 @@ namespace bv
             
             value_type word = get(p, p + step) | flag_mask();
             
-            result -= popcount(lowbits(flag_mask() & (word - value),
+            result -= popcount(lowbits(flag_mask() &
+                                       (word - value * field_mask()),
                                        step * width()));
         }
         
@@ -259,8 +262,11 @@ namespace bv
         
         template<typename T, REQUIRES(std::is_integral<T>::value)>
         T get() const {
-            return T(_v._bits.get(_begin,
-                                  std::min(_end, _begin + bitsize<T>())));
+            size_t begin = _begin * _v.width();
+            size_t end = std::min(_end * _v.width(),
+                                  begin + bitsize<T>());
+            
+            return static_cast<T>(_v._bits.get(begin, end));
         }
         
         friend std::string to_binary(range_reference_base const&ref,

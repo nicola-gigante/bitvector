@@ -132,7 +132,7 @@ namespace bv
         if(loc.hlen != 0)
             high = lowbits(_container[loc.index + 1], loc.hlen) << loc.llen;
             
-            return high | low;
+        return high | low;
     }
     
     template<template<typename ...> class Container>
@@ -197,7 +197,10 @@ namespace bv
         if(is_empty_range(begin, end))
             return;
         
-        assert(end - begin <= W);
+        size_t len = end - begin;
+
+        assert(len <= W);
+        ensure_bitsize(value, len);
         
         range_location_t loc = locate(begin, end);
         
