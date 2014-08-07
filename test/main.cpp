@@ -27,7 +27,9 @@ using namespace bv;
 
 void test_bitvector()
 {
-    bitvector::test(std::cout);
+    bitvector::test(std::cout, 100000, 128, false, false, false);
+    bitvector::test(std::cout, 100000, 256, false, false, false);
+    bitvector::test(std::cout, 100000, 512, false, false, false);
 }
 
 void test_packed_view()

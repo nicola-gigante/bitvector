@@ -56,7 +56,8 @@ namespace bv
         void insert(size_t index, bool bit);
         
         // Debugging
-        static void test(std::ostream &stream);
+        static void test(std::ostream &stream, size_t N, size_t W,
+                         bool dumpinfo, bool dumpnode, bool dumpcontents);
         friend std::ostream &operator<<(std::ostream &s, bitvector const&v);
         
     private:

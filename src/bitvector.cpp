@@ -434,8 +434,9 @@ namespace bv
                             o << "[x]: null\n";
                         else
                             o << "#" << i
-                              << ", [" << t.child(i).index() << "], |"
-                              << t.child(i).size() << "|: "
+                              << ", [" << t.child(i).index()
+                              << "], s = " << t.child(i).size()
+                              << ", r = " << ssize_t(t.child(i).rank()) << ": "
                               << to_binary(t.child(i).leaf(), 8, '|') << "\n";
                     }
                 }
@@ -808,7 +809,7 @@ namespace bv
         // Slide the window
         while(begin < child && end < t.nchildren())
         {
-            freeslots = freeslots - count(begin) + count(end - 1);
+            freeslots = freeslots - count(begin) + count(end);
             
             begin += 1;
             end += 1;
@@ -853,7 +854,7 @@ namespace bv
         t.ranks(begin, keys_end)   = prev_rank;
         
         t.sizes(keys_end, degree) -= last_size - prev_size;
-        t.ranks(keys_end, degree) -= last_rank - prev_size;
+        t.ranks(keys_end, degree) -= last_rank - prev_rank;
     }
     
     // FIXME: rewrite using a temporary space of two words instead
@@ -895,6 +896,7 @@ namespace bv
             // Here we take into account the first steps, when
             // we have an empty root to fill up. If we're going to use
             // a children that doesn't exist, we create it.
+            //FIXME: remove insert_child() like in redistribute_keys?
             if(t.pointers(i) == 0)
                 t.insert_child(i);
             
@@ -1017,28 +1019,26 @@ namespace bv
         _impl->insert(_impl->root(), index, bit);
     }
     
-    void bitvector::test(std::ostream &stream)
+    void bitvector::test(std::ostream &stream, size_t N, size_t W,
+                         bool dumpinfo, bool dumpnode, bool dumpcontents)
     {
         using std::chrono::high_resolution_clock;
         using std::chrono::duration_cast;
         using std::chrono::duration;
         
-        bitvector v(100000, 128);
-        stream << v << "\n";
+        bitvector v(N, W);
         
-        size_t nbits = 100000;
+        if(dumpinfo)
+            stream << v << "\n";
+        
+        size_t nbits = N;
         
         std::mt19937 engine(42);
         std::vector<std::pair<size_t, bool>> indexes;
         bool b = true;
         for(size_t i = 0; i < nbits; ++i) {
             std::uniform_int_distribution<size_t> dist(0, i);
-#if 1
-            indexes.emplace_back(dist(engine), b);
-#else
-            indexes.emplace_back(i, b);
-#endif
-            b = !b;
+            indexes.emplace_back(dist(engine), b = !b);
         }
         
         auto t1 = high_resolution_clock::now();
@@ -1047,31 +1047,32 @@ namespace bv
         v.insert(indexes.at(nbits - 1).first, indexes.at(nbits - 1).second);
         auto t2 = high_resolution_clock::now();
         
-#if 1
-        stream << "\n" << v._impl->root() << "\n";
-        if(v._impl->root().height() > 1) {
-            for(size_t i = 0; i < v._impl->root().nchildren(); ++i) {
-                if(v._impl->root().pointers(i) == 0)
-                    stream << "Child " << i << " is null\n";
-                else
-                    stream << v._impl->root().child(i) << "\n";
+        if(dumpnode) {
+            stream << "\n" << v._impl->root() << "\n";
+            if(v._impl->root().height() > 1) {
+                for(size_t i = 0; i < v._impl->root().nchildren(); ++i) {
+                    if(v._impl->root().pointers(i) == 0)
+                        stream << "Child " << i << " is null\n";
+                    else
+                        stream << v._impl->root().child(i) << "\n";
+                }
             }
         }
-#endif
         
-#if 1
-        for(size_t i = 0; i < nbits; ++i) {
-            if(i && i % 8 == 0)
-                stream << " ";
-            if(i && i % 64 == 0)
-                stream << "\n";
-            stream << v.access(i);
+        if (dumpcontents) {
+            for(size_t i = 0; i < nbits; ++i) {
+                if(i && i % 8 == 0)
+                    stream << " ";
+                if(i && i % 64 == 0)
+                    stream << "\n";
+                stream << v.access(i);
+            }
+            stream << "\n\n";
         }
-        stream << "\n\n";
-#endif
       
         double total = duration_cast<duration<double, std::ratio<1>>>(t2 - t1).count();
-        stream << "Inserted " << nbits << " bits in " << total << "s\n";
+        stream << "Inserted " << nbits << " bits (W = " << W << ") in "
+               << total << "s\n";
     }
     
     // Debugging output pane
