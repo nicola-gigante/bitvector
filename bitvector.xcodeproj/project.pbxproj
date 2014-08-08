@@ -24,6 +24,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C905F5D81994FDC100F11987 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = README.md; sourceTree = SOURCE_ROOT; };
 		C95B8C50195CB67D00C47D64 /* bits.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bits.h; sourceTree = "<group>"; };
 		C98D73551951E0EF005635C6 /* bitvector */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = bitvector; sourceTree = BUILT_PRODUCTS_DIR; };
 		C98D73671951E27D005635C6 /* bitvector.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = bitvector.h; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
@@ -65,6 +66,7 @@
 		C98D73571951E0EF005635C6 /* bitvector */ = {
 			isa = PBXGroup;
 			children = (
+				C905F5D81994FDC100F11987 /* README.md */,
 				C98D736B1951E5DD005635C6 /* LICENSE */,
 				C9C9DB29197C06FF00F8DABC /* TODO.txt */,
 				C9C69D95198FB3F0004711C3 /* src */,

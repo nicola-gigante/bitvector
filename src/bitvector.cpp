@@ -20,6 +20,7 @@
 #include "packed_view.h"
 
 #include <vector>
+#include <array>
 #include <cmath>
 #include <type_traits>
 #include <chrono>
@@ -51,12 +52,18 @@ namespace bv
         class subtree_ref;
         using subtree_const_ref = subtree_ref_base<true>;
         
-        using packed_data = packed_view<std::vector>;
+        // Here we define the container used for the storage of nodes and leaves
+        // TODO: Change it do std::deque
+        template<typename T>
+        using data_container = std::vector<T>;
+        
+        using packed_data = packed_view<data_container>;
         using field_type = packed_data::value_type;
         
-        using leaf_t = field_type;
-        static constexpr size_t leaf_bits = bitsize<leaf_t>();
-        
+        static constexpr size_t leaf_bits = 64;
+        using leaf_t = bitarray<leaf_bits>;
+        using leaf_reference = data_container<leaf_t>::reference;
+        using const_leaf_reference = data_container<leaf_t>::const_reference;
         
         /*
          * Public relations
@@ -113,7 +120,7 @@ namespace bv
         packed_data sizes;
         packed_data ranks;
         packed_data pointers;
-        std::vector<leaf_t> leaves;
+        data_container<leaf_t> leaves;
         
         /*
          * Operations
@@ -182,7 +189,8 @@ namespace bv
         using bt_impl_t = add_const_if_t<Const, bt_impl>;
         
         using leaf_reference = conditional_t<Const,
-                                             bt_impl::leaf_t, bt_impl::leaf_t&>;
+                                             bt_impl::const_leaf_reference,
+                                             bt_impl::leaf_reference>;
         
         using range_reference =
                conditional_t<Const, typename packed_data::const_range_reference,
@@ -632,7 +640,7 @@ namespace bv
         assert(index < t.size() && "Index out of bounds");
         
         if(t.is_leaf()) // We have a leaf
-            return bit(t.leaf(), index);
+            return t.leaf().get(index);
         else { // We're in a node
             size_t child, new_index;
             std::tie(child, new_index) = t.find(index);
@@ -650,7 +658,7 @@ namespace bv
         assert(index < t.size() && "Index out of bounds");
         
         if(t.is_leaf()) // We have a leaf
-            set_bit(t.leaf(), index, bit);
+            t.leaf().set(index, bit);
         else {
             size_t child, new_index;
             std::tie(child, new_index) = t.find(index);
@@ -754,8 +762,7 @@ namespace bv
             t.ranks(child, degree) += bit;
             
             // 3. Insert the bit
-            leaf_t &leaf = t.child(child).leaf();
-            leaf = insert_bit(leaf, new_index, bit);
+            t.child(child).leaf().insert(new_index, bit);
         }
         else // We'll have another node
         {
@@ -891,8 +898,8 @@ namespace bv
         
         for(size_t i = begin, p = 0; i < end; ++i) {
             if(t.pointers(i) != 0) {
-                leaf_t leaf = t.child(i).leaf();
-                bits.set(p, p + t.child(i).size(), leaf);
+                leaf_reference leaf = t.child(i).leaf();
+                bits.copy(leaf, 0, leaf.size(), p, p + t.child(i).size());
                 p += t.child(i).size();
             }
         }
@@ -916,15 +923,13 @@ namespace bv
             if(t.pointers(i) == 0)
                 t.insert_child(i);
             
-            static_assert(std::is_same<leaf_t, field_type>::value,
-                          "Fix this when leaf_t gets generalized");
             // Take the bits out of the buffer put them back into the leaf
-            leaf_t leaf = bits.get(p, p + n);
-            t.child(i).leaf() = leaf;
+            leaf_reference leaf = t.child(i).leaf();
+            leaf.copy(bits, p, p + n, 0, leaf.size());
             
             // Increment the counters
             t.sizes(i, degree) += n;
-            t.ranks(i, degree) += popcount(leaf);
+            t.ranks(i, degree) += leaf.popcount();
             
             // Count of the copied bits
             p += n;

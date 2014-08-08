@@ -185,6 +185,8 @@ namespace bv
     /*
      * Inserts the specified bit inside the word at the specified position,
      * shifting left all the more significant bits. The MSB is lost.
+     * TODO: some of those functions will become useless after the generalization
+     *       of leaf_t. Check them for removal.
      */
     template<typename T, REQUIRES(std::is_integral<T>::value)>
     T insert_bit(T word, size_t index, bool bit)

@@ -117,8 +117,6 @@ namespace bv
         void increment(size_t begin, size_t end, size_t n, overflow_opt opt);
         void repeat(size_t begin, size_t end, value_type value);
         size_t find(size_t begin, size_t end, value_type value) const;
-        static std::string to_binary(const_range_reference const&ref,
-                                     size_t sep, char ssep);
         
     private:
         // Actual data
@@ -230,27 +228,6 @@ namespace bv
         return result;
     }
     
-    template<template<typename ...> class C>
-    std::string packed_view<C>::to_binary(const_range_reference const&ref,
-                                          size_t sep, char ssep)
-    {
-        std::string s;
-        
-        size_t begin = ref._begin * ref._v.width();
-        size_t end = ref._end * ref._v.width();
-        
-        // It is slooooow. Oh well.. it's debugging output after all...
-        for(size_t i = begin, bits = 0; i < end; ++i, ++bits) {
-            if(bits && bits % sep == 0)
-                s += ssep;
-            s += ref._v._bits.get(i, i + 1) ? '1' : '0';
-        }
-        
-        std::reverse(s.begin(), s.end());
-        
-        return s;
-    }
-    
     template<template<typename ...> class Container>
     template<bool IsConst>
     class packed_view<Container>::range_reference_base
@@ -283,8 +260,10 @@ namespace bv
         friend std::string to_binary(range_reference_base const&ref,
                                      size_t sep = 8, char ssep = ' ')
         {
-            const_range_reference r = { ref._v, ref._begin, ref._end };
-            return packed_view::to_binary(r, sep, ssep);
+            size_t begin = ref._begin * ref._v.width();
+            size_t end = ref._end * ref._v.width();
+            
+            return ref._v._bits.to_binary(begin, end, sep, ssep);
         }
         
     protected:

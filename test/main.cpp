@@ -123,16 +123,14 @@ void test_word()
     assert(w.get(50, 60) == 42);
 }
 
+template<typename T>
+using array4 = std::array<T, 4>;
+
 void test_bits()
 {
     uint64_t val = 0x0000000000000000;
 
     set_bitfield(val, 16, 16 + 8, uint64_t(42));
-    
-    set_bit(val, 42, true);
-    assert(bit(val, 42));
-    set_bit(val, 42, false);
-    assert(not bit(val, 42));
     
     assert(bitfield(val, 16, 16 + 8) == 42);
     
@@ -143,6 +141,16 @@ void test_bits()
     assert(w.container()[0] == val);
     assert(w.get(16, 16 + 8) == 42);
     
+    w.set(42, true);
+    assert(w.get(42));
+    w.set(42, false);
+    assert(not w.get(42));
+    
+    // Test bitview of a static array
+    bitarray<256> w2;
+    assert(w2.size() == 256);
+    w2.set(0, 42, 42);
+    assert(w2.get(0, 42) == 42);
 }
 
 int main()
