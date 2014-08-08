@@ -37,3 +37,15 @@ Performance
 ==========
 Benchmarks coming soon, but it's promising.
 As said, space is provably succinct, so as the capacity grows, the space overhead goes to 0.
+
+TODO
+=====
+A lot of work has still to be done, see TODO.txt for details.
+In a few words, it still lacks:
+* The ability to change the width of the leaf nodes 
+* The ability to incrementally allocate the memory used for nodes and leaves
+  instead of allocating everything at once at the beginning (mainly it means
+  switching from std::vector to std::deque as the underlying storage for 
+  the nodes. Easy)
+* Performance tuning and profiling
+* A serious test suite
