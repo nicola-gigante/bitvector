@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-#include "bitvector.h"
+#ifndef BITVECTOR_H
+# error "This is a private file, include bitvector.h instead"
+#endif
 
 #include "bits.h"
 #include "packed_view.h"
@@ -41,6 +43,7 @@ namespace bv
     /*
      * Private implementation class for bitvector
      */
+    template<size_t W>
     struct bt_impl
     {
         /*
@@ -58,12 +61,12 @@ namespace bv
         using data_container = std::vector<T>;
         
         using packed_data = packed_view<data_container>;
-        using field_type = packed_data::value_type;
+        using field_type = typename packed_data::value_type;
         
-        static constexpr size_t leaf_bits = 64;
+        static constexpr size_t leaf_bits = W;
         using leaf_t = bitarray<leaf_bits>;
-        using leaf_reference = data_container<leaf_t>::reference;
-        using const_leaf_reference = data_container<leaf_t>::const_reference;
+        using leaf_reference = typename data_container<leaf_t>::reference;
+        using const_leaf_reference = typename data_container<leaf_t>::const_reference;
         
         /*
          * Public relations
@@ -182,8 +185,9 @@ namespace bv
      * needed to ensure const-correctness, thus ensuring that the accessors
      * like access() are truly const.
      */
+    template<size_t W>
     template<bool Const>
-    class bt_impl::subtree_ref_base
+    class bt_impl<W>::subtree_ref_base
     {
     protected:
         using bt_impl_t = add_const_if_t<Const, bt_impl>;
@@ -465,11 +469,26 @@ namespace bv
      * This is the non-const version of subtree_ref, which contains the
      * member functions that can modify the nodes' data
      */
-    class bt_impl::subtree_ref : public bt_impl::subtree_ref_base<false>
+    template<size_t W>
+    class bt_impl<W>::subtree_ref
+        : public bt_impl<W>::subtree_ref_base<false>
     {
         using Base = subtree_ref_base<false>;
         
-        using Base::bt_impl_t;
+        using typename Base::bt_impl_t;
+        using Base::_vector;
+        using Base::_index;
+        using Base::_height;
+        using Base::_size;
+        using Base::_rank;
+        
+    public:
+        using Base::sizes;
+        using Base::ranks;
+        using Base::pointers;
+        using Base::degree;
+        using Base::is_node;
+        using Base::leaf;
         
     public:
         subtree_ref(bt_impl_t &vector, size_t index, size_t height,
@@ -546,10 +565,11 @@ namespace bv
      * Parameters are computed according to the required maximum capacity.
      * Please refer to the paper for a detailed explaination.
      */
-    bt_impl::bt_impl(size_t N, size_t W)
+    template<size_t W>
+    bt_impl<W>::bt_impl(size_t N, size_t Wn)
     {
         capacity = N;
-        node_width = W;
+        node_width = Wn;
         
         counter_width = ceil(log2(capacity)) + 1;
         
@@ -604,12 +624,14 @@ namespace bv
      * a counter.
      * TODO: switch from std::vector to std::deque to support dynamic growth
      */
-    size_t bt_impl::alloc_node() {
+    template<size_t W>
+    size_t bt_impl<W>::alloc_node() {
         assert(free_node < (sizes.size() / degree));
         return free_node++;
     }
     
-    size_t bt_impl::alloc_leaf() {
+    template<size_t W>
+    size_t bt_impl<W>::alloc_leaf() {
         assert(free_leaf < leaves.size());        
         return free_leaf++;
     }
@@ -623,11 +645,13 @@ namespace bv
      * insert(), for example, the size() and rank() of the subtree_ref become
      * temporarily wrong.
      */
-    auto bt_impl::root() -> subtree_ref {
+    template<size_t W>
+    auto bt_impl<W>::root() -> subtree_ref {
         return { *this, 0, height, size, rank };
     }
     
-    auto bt_impl::root() const -> subtree_const_ref {
+    template<size_t W>
+    auto bt_impl<W>::root() const -> subtree_const_ref {
         return { *this, 0, height, size, rank };
     }
     
@@ -635,7 +659,8 @@ namespace bv
      * This is the implementation of the bit search into the tree.
      * No big deal here, it's only a tree search.
      */
-    bool bt_impl::access(subtree_const_ref t, size_t index) const
+    template<size_t W>
+    bool bt_impl<W>::access(subtree_const_ref t, size_t index) const
     {
         assert(index < t.size() && "Index out of bounds");
         
@@ -653,7 +678,8 @@ namespace bv
      * Setting a bit. 
      * The structure is identical to access, nothing to see here folks.
      */
-    void bt_impl::set(subtree_ref t, size_t index, bool bit)
+    template<size_t W>
+    void bt_impl<W>::set(subtree_ref t, size_t index, bool bit)
     {
         assert(index < t.size() && "Index out of bounds");
         
@@ -678,7 +704,8 @@ namespace bv
      * B+-tree, with all the weird bit operations hidden in subtree_ref or in 
      * lower layers.
      */
-    void bt_impl::insert(subtree_ref t, size_t index, bool bit)
+    template<size_t W>
+    void bt_impl<W>::insert(subtree_ref t, size_t index, bool bit)
     {
         assert(index <= t.size() && "Index out of bounds");
         
@@ -805,8 +832,9 @@ namespace bv
     // - The begin and the end of the interval selected interval of children
     // - The count of slots contained in total in the found leaves
     //   I repeat: the number of slots, not the number of free slots
+    template<size_t W>
     std::tuple<size_t, size_t, size_t>
-    bt_impl::find_adjacent_children(subtree_const_ref t, size_t child)
+    bt_impl<W>::find_adjacent_children(subtree_const_ref t, size_t child)
     {
         const bool is_leaf = t.child(child).is_leaf();
         const size_t buffer = is_leaf ? leaves_buffer : nodes_buffer;
@@ -861,7 +889,8 @@ namespace bv
     // to prepare the redistribution. In these functions we already know how
     // many children we want to iterate on, so we don't need nchildren()
     //
-    void bt_impl::clear_children_counters(subtree_ref t,
+    template<size_t W>
+    void bt_impl<W>::clear_children_counters(subtree_ref t,
                                           size_t begin, size_t end) const
     {
         size_t keys_end = std::min(end, degree);
@@ -882,7 +911,8 @@ namespace bv
     
     // FIXME: rewrite using a temporary space of two words instead
     //        of the whole buffer, thus avoiding the dynamic allocation
-    void bt_impl::redistribute_bits(subtree_ref t,
+    template<size_t W>
+    void bt_impl<W>::redistribute_bits(subtree_ref t,
                                     size_t begin, size_t end, size_t count)
     {
         size_t b = end - begin; // Number of children to use
@@ -898,9 +928,10 @@ namespace bv
         
         for(size_t i = begin, p = 0; i < end; ++i) {
             if(t.pointers(i) != 0) {
+                size_t step = t.child(i).size();
                 leaf_reference leaf = t.child(i).leaf();
-                bits.copy(leaf, 0, leaf.size(), p, p + t.child(i).size());
-                p += t.child(i).size();
+                bits.copy(leaf, 0, leaf.size(), p, p + step);
+                p += step;
             }
         }
         
@@ -925,6 +956,7 @@ namespace bv
             
             // Take the bits out of the buffer put them back into the leaf
             leaf_reference leaf = t.child(i).leaf();
+            leaf.clear();
             leaf.copy(bits, p, p + n, 0, leaf.size());
             
             // Increment the counters
@@ -941,7 +973,8 @@ namespace bv
     
     // FIXME: rewrite using a temporary space of two words instead
     //        of the whole buffer, thus avoiding the dynamic allocation
-    void bt_impl::redistribute_keys(subtree_ref t,
+    template<size_t W>
+    void bt_impl<W>::redistribute_keys(subtree_ref t,
                                     size_t begin, size_t end, size_t count)
     {
         size_t b = end - begin;
@@ -1016,57 +1049,140 @@ namespace bv
      * Implementation of bitvector's interface,
      * that delegates everything to the private implementation
      */
-    bitvector::bitvector(size_t capacity, size_t node_width)
-        : _impl(new bt_impl(capacity, node_width)) { }
+    template<size_t W>
+    inline
+    bitvector_t<W>::bitvector_t(size_t capacity, size_t node_width)
+        : _impl(new bt_impl<W>(capacity, node_width)) { }
     
-    bitvector::~bitvector() = default;
+    template<size_t W>
+    inline
+    bitvector_t<W>::bitvector_t(bitvector_t const&other)
+        : _impl(new bt_impl<W>(*other._impl)) { }
     
-    bitvector::bitvector(bitvector const&other)
-        : _impl(new bt_impl(*other._impl)) { }
-    
-    bitvector &bitvector::operator=(bitvector const&other) {
+    template<size_t W>
+    inline
+    bitvector_t<W> &bitvector_t<W>::operator=(bitvector_t const&other) {
         *_impl = *other._impl;
         return *this;
     }
     
-    bool bitvector::empty() const { return _impl->size == 0; }
-    bool bitvector::full() const { return _impl->size == _impl->capacity; }
+    template<size_t W>
+    inline
+    bool bitvector_t<W>::empty() const { return _impl->size == 0; }
     
-    bool bitvector::access(size_t index) const {
+    template<size_t W>
+    inline
+    bool bitvector_t<W>::full() const { return _impl->size == _impl->capacity; }
+    
+    template<size_t W>
+    inline
+    bool bitvector_t<W>::access(size_t index) const {
         return _impl->access(_impl->root(), index);
     }
     
-    void bitvector::set(size_t index, bool bit) {
+    template<size_t W>
+    inline
+    void bitvector_t<W>::set(size_t index, bool bit) {
         return _impl->set(_impl->root(), index, bit);
     }
     
-    void bitvector::insert(size_t index, bool bit) {
+    template<size_t W>
+    inline
+    void bitvector_t<W>::insert(size_t index, bool bit) {
         _impl->insert(_impl->root(), index, bit);
     }
     
-    // Debugging functions
-    bitvector::info_t bitvector::info() const
-    {
-        return { _impl->capacity,
-                 _impl->size,
-                 _impl->node_width,
-                 _impl->counter_width,
-                 _impl->pointer_width,
-                 _impl->degree,
-                 _impl->nodes_buffer,
-                 _impl->sizes.size() / _impl->degree,
-                 _impl->leaves.size()
-                };
+    template<size_t W>
+    inline
+    auto bitvector_t<W>::operator[](size_t index) -> reference {
+        assert(index < size());
+        return { *this, index };
     }
     
-    void bitvector::test(std::ostream &stream, size_t N, size_t W,
+    template<size_t W>
+    inline
+    auto bitvector_t<W>::operator[](size_t index) const -> const_reference {
+        assert(index < size());
+        return { *this, index };
+    }
+    
+    template<size_t W>
+    inline
+    void bitvector_t<W>::push_back(bool bit) {
+        insert(size(), bit);
+    }
+    
+    template<size_t W>
+    inline
+    void bitvector_t<W>::push_front(bool bit) {
+        insert(0, bit);
+    }
+    
+    /*
+     * Reference types for the access operators
+     */
+    template<size_t W>
+    class bitvector_t<W>::const_reference
+    {
+        friend class bitvector_t;
+        
+        bitvector_t const&_v;
+        size_t _index;
+        
+        const_reference(bitvector_t const&v, size_t index)
+        : _v(v), _index(index) { }
+    public:
+        const_reference(const_reference const&) = default;
+        
+        operator bool() const {
+            return _v.access(_index);
+        }
+    };
+    
+    template<size_t W>
+    class bitvector_t<W>::reference
+    {
+        friend class bitvector_t;
+        
+        bitvector_t &_v;
+        size_t _index;
+        
+        reference(bitvector_t &v, size_t index)
+        : _v(v), _index(index) { }
+    public:
+        reference(reference const&) = default;
+        
+        reference &operator=(const_reference const&ref) {
+            _v.set(_index, ref._v.access(ref._index));
+            return *this;
+        }
+        
+        reference &operator=(bool bit) {
+            _v.set(_index, bit);
+            return *this;
+        }
+        
+        operator const_reference() const {
+            return { _v, _index };
+        }
+        
+        operator bool() const {
+            return _v.access(_index);
+        }
+    };
+    
+    /*
+     * Test and debugging functions
+     */
+    template<size_t W>
+    void bitvector_t<W>::test(std::ostream &stream, size_t N, size_t Wn,
                          bool dumpinfo, bool dumpnode, bool dumpcontents)
     {
         using std::chrono::high_resolution_clock;
         using std::chrono::duration_cast;
         using std::chrono::duration;
         
-        bitvector v(N, W);
+        bitvector_t v(N, Wn);
         
         if(dumpinfo)
             stream << v << "\n";
@@ -1111,11 +1227,28 @@ namespace bv
         }
       
         double total = duration_cast<duration<double, std::ratio<1>>>(t2 - t1).count();
-        stream << "Inserted " << nbits << " bits (W = " << W << ") in "
+        stream << "Inserted " << nbits << " bits (W = " << Wn << ") in "
                << total << "s\n";
     }
     
-    std::ostream &operator<<(std::ostream &s, bitvector const&v) {
+    template<size_t W>
+    inline
+    auto bitvector_t<W>::info() const -> info_t
+    {
+        return { _impl->capacity,
+            _impl->size,
+            _impl->node_width,
+            _impl->counter_width,
+            _impl->pointer_width,
+            _impl->degree,
+            _impl->nodes_buffer,
+            _impl->sizes.size() / _impl->degree,
+            _impl->leaves.size()
+        };
+    }
+    
+    template<size_t W>
+    std::ostream &operator<<(std::ostream &s, bitvector_t<W> const&v) {
         s << "Word width         = " << v._impl->node_width << " bits\n"
           << "Capacity           = " << v._impl->capacity << " bits\n"
           << "Size counter width = " << v._impl->counter_width << " bits\n"

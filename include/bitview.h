@@ -17,7 +17,7 @@
 #ifndef BITVECTOR_BITVIEW_H
 #define BITVECTOR_BITVIEW_H
 
-#include "bits.h"
+#include "internal/bits.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -78,6 +78,8 @@ namespace bv
         
         void set(size_t begin, size_t end, value_type value);
         void set(size_t index, bool bit);
+        
+        void clear();
         
         void copy(bitview const&src,
                   size_t src_begin, size_t src_end,
@@ -234,6 +236,12 @@ namespace bv
         const value_type bitmask = value_type(bit) << (index % W);
 
         _container[index / W] = (_container[index / W] & mask) | bitmask;
+    }
+    
+    template<template<typename ...> class Container>
+    void bitview<Container>::clear()
+    {
+        std::fill(_container.begin(), _container.end(), 0);
     }
     
     template<template<typename ...> class Container>

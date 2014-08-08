@@ -17,7 +17,7 @@
 #ifndef BITVECTOR_H
 #define BITVECTOR_H
 
-#include "bits.h"
+#include "internal/bits.h"
 #include "packed_view.h"
 
 #include <memory>
@@ -53,8 +53,15 @@ namespace bv
      * for example return a fresh bitvector by value. 
      *
      */
-    class bitvector
+    template<size_t W>
+    struct bt_impl;
+    
+    template<size_t W>
+    class bitvector_t
     {
+        static_assert(W % bitsize<bitview_value_type>() == 0,
+                      "You must choose a number of bits that is multiple "
+                      "of the word size");
     public:
         /*
          * Types and typedefs
@@ -66,16 +73,14 @@ namespace bv
         /*
          * Constructors, copies and moves...
          */
-        bitvector(size_t N, size_t W = 256);
-        // Destructor is defaulted but must be out-of-line to use
-        // a unique_ptr of an incomplete type
-        ~bitvector();
+        bitvector_t(size_t N, size_t Wn = 256);
+        ~bitvector_t() = default;
 
-        bitvector(bitvector const&);
-        bitvector(bitvector &&) = default;
+        bitvector_t(bitvector_t const&);
+        bitvector_t(bitvector_t &&) = default;
         
-        bitvector &operator=(bitvector const&);
-        bitvector &operator=(bitvector &&) = default;
+        bitvector_t &operator=(bitvector_t const&);
+        bitvector_t &operator=(bitvector_t &&) = default;
         
         /*
          * Accessors
@@ -113,96 +118,19 @@ namespace bv
             const size_t leaves;
         };
         info_t info() const;
-        static void test(std::ostream &stream, size_t N, size_t W,
+        static void test(std::ostream &stream, size_t N, size_t Wn,
                          bool dumpinfo, bool dumpnode, bool dumpcontents);
-        friend std::ostream &operator<<(std::ostream &s, bitvector const&v);
+        template<size_t Z>
+        friend std::ostream &operator<<(std::ostream &s, bitvector_t<Z> const&v);
         
     private:
-        std::unique_ptr<struct bt_impl> _impl;
+        std::unique_ptr<bt_impl<W>> _impl;
     };
     
-    /************************************************************************/
-    
-    /*
-     * Reference types for the access operators
-     */
-    class bitvector::const_reference
-    {
-        friend class bitvector;
-        
-        bitvector const&_v;
-        size_t _index;
-        
-        const_reference(bitvector const&v, size_t index)
-            : _v(v), _index(index) { }
-    public:
-        const_reference(const_reference const&) = default;
-        
-        operator bool() const {
-            return _v.access(_index);
-        }
-    };
-    
-    class bitvector::reference
-    {
-        friend class bitvector;
-        
-        bitvector &_v;
-        size_t _index;
-        
-        reference(bitvector &v, size_t index)
-            : _v(v), _index(index) { }
-    public:
-        reference(reference const&) = default;
-        
-        reference &operator=(const_reference const&ref) {
-            _v.set(_index, ref._v.access(ref._index));
-            return *this;
-        }
-        
-        reference &operator=(bool bit) {
-            _v.set(_index, bit);
-            return *this;
-        }
-        
-        operator const_reference() const {
-            return { _v, _index };
-        }
-        
-        operator bool() const {
-            return _v.access(_index);
-        }
-    };
-    
-    /*
-     * Inline implementation of some trivial member function that really should
-     * be inlined (but written here out of the class declaration for aesthetics)
-     */
-    inline
-    bitvector::reference
-    bitvector::operator[](size_t index) {
-        assert(index < size());
-        return { *this, index };
-    }
-    
-    inline
-    bitvector::const_reference
-    bitvector::operator[](size_t index) const {
-        assert(index < size());
-        return { *this, index };
-    }
-    
-    inline
-    void bitvector::push_back(bool bit) {
-        insert(size(), bit);
-    }
-    
-    inline
-    void bitvector::push_front(bool bit) {
-        insert(0, bit);
-    }
+    using bitvector = bitvector_t<512>;
 }
 
+#include "internal/bitvector.hpp"
 
 
 #endif // BITVECTOR_H

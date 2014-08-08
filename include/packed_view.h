@@ -18,7 +18,7 @@
 #define BITVECTOR_PACKED_VIEW_H
 
 #include "bitview.h"
-#include "bits.h"
+#include "internal/bits.h"
 
 #include <string>
 

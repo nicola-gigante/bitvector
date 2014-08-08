@@ -121,6 +121,17 @@ void test_word()
 
     assert(w.get(30, 50) == 0xBABE);
     assert(w.get(50, 60) == 42);
+    
+    
+    w.set(60, 70, 42);
+    w.insert(60, false);
+    
+    assert(w.get(60, 70) == 84);
+    
+    w.insert(60, true);
+    
+    assert(w.get(60, 70) == 169);
+    assert(w.popcount(60, 70) == 4);
 }
 
 template<typename T>
