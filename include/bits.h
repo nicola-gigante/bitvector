@@ -95,8 +95,7 @@ namespace bv
         if(is_empty_range(begin, end))
             return 0;
         
-        assert(begin < W);
-        assert(end - begin <= W);
+        check_valid_range(begin, end, W);
         
         constexpr T ff = std::numeric_limits<T>::max();
         
@@ -109,6 +108,8 @@ namespace bv
     template<typename T, REQUIRES(std::is_integral<T>::value)>
     T lowbits(T val, size_t n)
     {
+        assert(n <= bitsize<T>());
+        
         return val & mask<T>(0, n);
     }
     
@@ -120,6 +121,8 @@ namespace bv
     T highbits(T val, size_t n)
     {
         constexpr size_t W = bitsize<T>();
+        
+        assert(n <= W);
         
         return val & mask<T>(W - n, W);
     }
@@ -135,8 +138,7 @@ namespace bv
         if(is_empty_range(begin, end))
             return 0;
         
-        assert(begin < W);
-        assert(end - begin <= W);
+        check_valid_range(begin, end, W);
         
         return lowbits(highbits(val, W - begin) >> begin, end - begin);
     }
@@ -151,9 +153,9 @@ namespace bv
         if(is_empty_range(begin, end))
             return;
         
-        size_t len = end - begin;
+        check_valid_range(begin, end, bitsize<T>());
         
-        T masked = lowbits(value, len) << begin;
+        T masked = lowbits(value, end - begin) << begin;
         T zeroes = ~mask<T>(begin, end);
         
         dest = (dest & zeroes) | masked;
@@ -165,7 +167,19 @@ namespace bv
     template<typename T, REQUIRES(std::is_integral<T>::value)>
     bool bit(T word, size_t index)
     {
+        assert(index < bitsize<T>());
         return bool(bitfield(word, index, index + 1));
+    }
+    
+    /*
+     * Sets the specified bit
+     */
+    template<typename T, REQUIRES(std::is_integral<T>::value)>
+    void set_bit(T &word, size_t index, bool bit)
+    {
+        assert(index < bitsize<T>());
+        
+        word = (word & ~(T(1) << index)) | (T(bit) << index);
     }
     
     /*

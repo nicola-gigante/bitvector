@@ -14,4 +14,12 @@ Other todos:
    advance every time.
  - Investigate other layouts for nodes in the buffer 
    (driven by measurements of cache misses)
- - More testing and performance profiling
+ - A serious test suite
+ - Performance profiling
+
+Minutiae:
+ - detect -fno-exception to switch asserts and exceptions 
+   for error reporting in the API
+ - Iterators (may require changes in the data structure to do it efficiently)
+ - Word access and insertion
+ - Word iterators

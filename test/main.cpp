@@ -129,6 +129,11 @@ void test_bits()
 
     set_bitfield(val, 16, 16 + 8, uint64_t(42));
     
+    set_bit(val, 42, true);
+    assert(bit(val, 42));
+    set_bit(val, 42, false);
+    assert(not bit(val, 42));
+    
     assert(bitfield(val, 16, 16 + 8) == 42);
     
     bitview<std::vector> w(64);
@@ -137,6 +142,7 @@ void test_bits()
     
     assert(w.container()[0] == val);
     assert(w.get(16, 16 + 8) == 42);
+    
 }
 
 int main()

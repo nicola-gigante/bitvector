@@ -141,6 +141,9 @@ namespace bv
         // Read-only access to the bits data
         bool access(subtree_const_ref t, size_t index) const;
         
+        // Set a bit
+        void set(subtree_ref t, size_t index, bool bit);
+        
         // Insertion of a bit
         void insert(subtree_ref t, size_t index, bool bit);
         
@@ -493,10 +496,6 @@ namespace bv
                 size_t s = sizes(k - 1);
                 size_t r = ranks(k - 1);
                 
-//              it was like this
-//                sizes(k - 1, degree()) <<= _vector.counter_width;
-//                ranks(k - 1, degree()) <<= _vector.counter_width;
-//                pointers(k, degree() + 1) <<= _vector.pointer_width;
                 sizes(k, degree()) = sizes(k - 1, degree());
                 ranks(k, degree()) = ranks(k - 1, degree());
                 pointers(k + 1, degree() + 1) = pointers(k, degree() + 1);
@@ -630,8 +629,7 @@ namespace bv
      */
     bool bt_impl::access(subtree_const_ref t, size_t index) const
     {
-        if(index >= t.size())
-            throw std::out_of_range("Index out of bounds");
+        assert(index < t.size() && "Index out of bounds");
         
         if(t.is_leaf()) // We have a leaf
             return bit(t.leaf(), index);
@@ -644,19 +642,37 @@ namespace bv
     }
     
     /*
+     * Setting a bit. 
+     * The structure is identical to access, nothing to see here folks.
+     */
+    void bt_impl::set(subtree_ref t, size_t index, bool bit)
+    {
+        assert(index < t.size() && "Index out of bounds");
+        
+        if(t.is_leaf()) // We have a leaf
+            set_bit(t.leaf(), index, bit);
+        else {
+            size_t child, new_index;
+            std::tie(child, new_index) = t.find(index);
+            
+            return set(t.child(child), new_index, bit);
+        }
+    }
+    
+    /*
      * This is the entry point of the insertion algorithm
      * For details on the algorithm itself, see the paper.
      * From an implementation point of view, the central point is the
      * subtree_ref class, which tries to hide the fact the the nodes' data
      * is packed into variable sized bitfields inside three different buffers.
-     * The final result is that, if you only look at this insert() method, the
-     * algorithm could roughly seem like a semi-standard, non-packed B+-tree,
-     * with all the weird bit operations hidden in subtree_ref or in lower layers.
+     * The final result should be that, if you only look at this insert() 
+     * method, the algorithm could roughly seem like a semi-standard, non-packed
+     * B+-tree, with all the weird bit operations hidden in subtree_ref or in 
+     * lower layers.
      */
     void bt_impl::insert(subtree_ref t, size_t index, bool bit)
     {
-        if(index > t.size())
-            throw std::out_of_range("Index out of bounds");
+        assert(index <= t.size() && "Index out of bounds");
         
         // If we see a full node in this point it must be the root,
         // otherwise we've violated our invariants.
@@ -1015,8 +1031,27 @@ namespace bv
         return _impl->access(_impl->root(), index);
     }
     
+    void bitvector::set(size_t index, bool bit) {
+        return _impl->set(_impl->root(), index, bit);
+    }
+    
     void bitvector::insert(size_t index, bool bit) {
         _impl->insert(_impl->root(), index, bit);
+    }
+    
+    // Debugging functions
+    bitvector::info_t bitvector::info() const
+    {
+        return { _impl->capacity,
+                 _impl->size,
+                 _impl->node_width,
+                 _impl->counter_width,
+                 _impl->pointer_width,
+                 _impl->degree,
+                 _impl->nodes_buffer,
+                 _impl->sizes.size() / _impl->degree,
+                 _impl->leaves.size()
+                };
     }
     
     void bitvector::test(std::ostream &stream, size_t N, size_t W,
@@ -1075,7 +1110,6 @@ namespace bv
                << total << "s\n";
     }
     
-    // Debugging output pane
     std::ostream &operator<<(std::ostream &s, bitvector const&v) {
         s << "Word width         = " << v._impl->node_width << " bits\n"
           << "Capacity           = " << v._impl->capacity << " bits\n"
