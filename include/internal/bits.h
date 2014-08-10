@@ -20,10 +20,12 @@
 #include <cstddef>
 #include <climits>
 #include <cstdint>
-#include <utility>
-#include <memory>
 #include <cassert>
 #include <cmath>
+#include <limits>
+#include <utility>
+#include <memory>
+#include <algorithm>
 #include <iterator>
 #include <string>
 #include <type_traits>

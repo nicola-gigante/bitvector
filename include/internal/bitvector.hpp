@@ -471,7 +471,7 @@ namespace bv
      */
     template<size_t W>
     class bt_impl<W>::subtree_ref
-        : public bt_impl<W>::subtree_ref_base<false>
+        : public bt_impl<W>::template subtree_ref_base<false>
     {
         using Base = subtree_ref_base<false>;
         
@@ -875,7 +875,7 @@ namespace bv
         size_t total = max_count * buffer - maxfreeslots;
         
         assert(window.first <= child && child < window.second);
-        return { window.first, window.second, total };
+        return std::make_tuple( window.first, window.second, total );
     }
     
     //
