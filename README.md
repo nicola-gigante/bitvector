@@ -7,14 +7,14 @@ The bitvector is implemented as a packed B+-tree. For a full explaination of the
 data structure, and how we use it, see the coming soon paper from
 Prezza, Policriti et al. (I'll link it here when ready).
 
-Requirements
-===========
+### Requirements
+
 The code is written in standard-compliant C++11.
 I've tested the code under clang 3.4 and g++ 4.9, and I'm quite sure it's 100%
 portable. More testing is always appreciated.
 
-Usage
-======
+### Usage
+
 The library is header-only, so you don't need to compile anything in order to
 use it, just #include "bitvector.h" and use the class.
 
@@ -52,8 +52,8 @@ If the performance with the default value for W doesn't fit your
 machine/architecture/compiler, use bitvector_t and choose the most suitable
 value.
 
-Auxiliary data-structures
-==========================
+### Auxiliary data-structures
+
 As a side benefit, two classes used inside bitvector could be useful on their
 own:
 * ```bitview<Container>``` is an adaptor around any container with a 
@@ -73,8 +73,8 @@ inteface, although as generic as possible, is tied with how I use them in
 ```bitvector``` (for example, packed_view doesn't have iterators).
 Nonetheless, I suppose they could be useful for other purposes.
 
-Testings
-=========
+### Testings
+
 A complete test suite is still needed. In the meantime, I have some tests of
 correctness for internal components and for the data structures itself in
 the test/main.cpp file, with a Makefile to build the test. To aid the
@@ -82,21 +82,23 @@ comparation between different compilers, the makefile outputs a binary suffixed
 with the name of the compiler used, if any has been specified explicitly, so if
 you do:
 
+```
 $ CXX=clang++ make
 $ CXX=g++ make
+```
 
 You should end up with two binaries, test-clang++ and test-g++.
 
-Performance
-==========
+### Performance
+
 Benchmarks coming soon, but it's promising.
 As said, space is provably succinct, so as the capacity grows, the space
 overhead goes to 0. While time complexity are theoretically good at the
 expense of a complex implementation, the succinct space is the main theoretical
 reason of existence of this structure.
 
-TODO
-=====
+### TODO
+
 Some work has still to be done, see TODO.txt for details.
 In a few words, it still lacks:
 * The ability to incrementally allocate the memory used for nodes and leaves
