@@ -418,8 +418,8 @@ namespace bv
                   << "Rank: " << t.rank() << "\n"
                   << "Contents: |" << to_binary(t.leaf(), 8, '|') << "|";
             } else {
-                int field_width = std::max(log10(t.size()),
-                                           log10(t._vector.used_leaves())) + 4;
+                int field_width = int(max(log10(t.size()),
+                                          log10(t._vector.used_leaves()))) + 4;
                 
                 o << "Node at index:      " << t.index() << "\n"
                   << "Total size:         " << t.size() << "\n"
@@ -491,9 +491,9 @@ namespace bv
         using Base::leaf;
         
     public:
-        subtree_ref(bt_impl_t &vector, size_t index, size_t height,
-                    size_t size, size_t rank)
-            : Base(vector, index, height, size, rank) { }
+        subtree_ref(bt_impl_t &vector_, size_t index_, size_t height_,
+                    size_t size_, size_t rank_)
+            : Base(vector_, index_, height_, size_, rank_) { }
         
         subtree_ref(subtree_ref_base<false> const&r)
             : Base(r.vector(), r.index(), r.height(), r.size(), r.rank()) { }
@@ -571,7 +571,7 @@ namespace bv
         capacity = N;
         node_width = Wn;
         
-        counter_width = ceil(log2(capacity)) + 1;
+        counter_width = size_t(ceil(log2(capacity))) + 1;
         
         degree = node_width / counter_width;
         
@@ -584,10 +584,10 @@ namespace bv
         leaves_buffer = nodes_buffer;
         
         // Total number of leaves to allocate space for
-        size_t leaves_count = ceil(capacity /
-                                   ((leaves_buffer *
-                                     (leaf_bits - leaves_buffer)) /
-                                    (leaves_buffer + 1)));
+        size_t leaves_count = size_t(ceil(capacity /
+                                          ((leaves_buffer *
+                                            (leaf_bits - leaves_buffer)) /
+                                           (leaves_buffer + 1))));
         
         size_t minimum_degree = nodes_buffer;
         
@@ -596,12 +596,12 @@ namespace bv
         size_t level_count = leaves_count;
         do
         {
-            level_count = ceil(float(level_count) / minimum_degree);
+            level_count = size_t(ceil(float(level_count) / minimum_degree));
             nodes_count += level_count;
         } while(level_count > 1);
         
         // Width of pointers
-        pointer_width = ceil(log2(std::max(nodes_count, leaves_count + 1)));
+        pointer_width = size_t(ceil(log2(max(nodes_count, leaves_count + 1))));
         
         assert(pointer_width <= counter_width);
         assert(pointer_width * (degree + 1) <= node_width);
@@ -770,11 +770,11 @@ namespace bv
                     for(size_t k = begin; k < end; ++k) {
                         size_t minsize = (leaves_buffer * (leaf_bits - leaves_buffer)) /
                                          (leaves_buffer + 1);
-                        size_t size = t.child(k).size();
-                        assert(size >= minsize);
+                        size_t childsize = t.child(k).size();
+                        assert(childsize >= minsize);
                         // Silence unused warnings in release mode
                         (void)minsize;
-                        (void)size;
+                        (void)childsize;
                     }
                 }
                 
@@ -989,13 +989,13 @@ namespace bv
             size_t ptr;
         };
         
-        std::vector<pointer> pointers;
-        pointers.reserve(nodes_buffer * (degree + 1));
+        std::vector<pointer> ptrs;
+        ptrs.reserve(nodes_buffer * (degree + 1));
         
         for(size_t i = begin; i != end; ++i) {
             if(t.pointers(i) != 0) {
                 for(size_t c = 0; c < t.child(i).nchildren(); ++c) {
-                    pointers.push_back({ t.child(i).child(c).size(),
+                    ptrs.push_back({ t.child(i).child(c).size(),
                         t.child(i).child(c).rank(),
                         t.child(i).pointers(c) });
                 }
@@ -1024,10 +1024,10 @@ namespace bv
             size_t childrank = 0;
             for(size_t j = 0; j < n; ++j)
             {
-                size_t s = pointers[p + j].size;
-                size_t r = pointers[p + j].rank;
+                size_t s = ptrs[p + j].size;
+                size_t r = ptrs[p + j].rank;
                 
-                t.child(i).pointers(j) = pointers[p + j].ptr;
+                t.child(i).pointers(j) = ptrs[p + j].ptr;
                 t.child(i).sizes(j, degree) += s;
                 t.child(i).ranks(j, degree) += r;
                 

@@ -79,7 +79,7 @@ namespace bv
         static_assert(std::is_same<T, uint64_t>::value,
                       "Popcount is unimplemented for types other than uint64_t");
         // TODO: Check the availability of __builtin_popcountll
-        return __builtin_popcountll(value);
+        return size_t(__builtin_popcountll(value));
     }
     
     /*

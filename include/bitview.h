@@ -48,7 +48,7 @@ namespace bv
         
         template<typename Size = size_t,
                  REQUIRES(std::is_constructible<container_type, Size>::value)>
-        bitview(Size size)
+        bitview(size_t size)
             : _container(required_container_size(size)) { }
         
         bitview(bitview const&) = default;

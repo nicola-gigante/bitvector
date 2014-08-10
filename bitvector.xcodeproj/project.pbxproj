@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		C98D736A1951E28B005635C6 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C98D73691951E28B005635C6 /* main.cpp */; };
+		C9D41A901997958100B1AB26 /* Makefile in Sources */ = {isa = PBXBuildFile; fileRef = C9D41A8F1997958100B1AB26 /* Makefile */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -32,6 +33,7 @@
 		C99E32B71995547000E8A00F /* bitvector.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = bitvector.hpp; sourceTree = "<group>"; };
 		C9A8FD19197DA0E700BFD7BF /* bitview.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bitview.h; sourceTree = "<group>"; };
 		C9C9DB29197C06FF00F8DABC /* TODO.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = TODO.txt; sourceTree = SOURCE_ROOT; };
+		C9D41A8F1997958100B1AB26 /* Makefile */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.make; path = Makefile; sourceTree = "<group>"; };
 		C9D7ABB5198BF11700CFBFC1 /* packed_view.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = packed_view.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -88,6 +90,7 @@
 		C98D73681951E28B005635C6 /* test */ = {
 			isa = PBXGroup;
 			children = (
+				C9D41A8F1997958100B1AB26 /* Makefile */,
 				C98D73691951E28B005635C6 /* main.cpp */,
 			);
 			path = test;
@@ -153,6 +156,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C9D41A901997958100B1AB26 /* Makefile in Sources */,
 				C98D736A1951E28B005635C6 /* main.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -197,7 +201,11 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
-				WARNING_CFLAGS = "-Weverything";
+				WARNING_CFLAGS = (
+					"-Weverything",
+					"-Wno-c++98-compat",
+					"-Wno-c++98-compat-pedantic",
+				);
 			};
 			name = Debug;
 		};
@@ -234,7 +242,11 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.9;
 				SDKROOT = macosx;
-				WARNING_CFLAGS = "-Weverything";
+				WARNING_CFLAGS = (
+					"-Weverything",
+					"-Wno-c++98-compat",
+					"-Wno-c++98-compat-pedantic",
+				);
 			};
 			name = Release;
 		};
@@ -243,11 +255,7 @@
 			buildSettings = {
 				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				WARNING_CFLAGS = (
-					"-Weverything",
-					"-Wno-c++98-compat",
-					"-Wno-c++98-compat-pedantic",
-				);
+				WARNING_CFLAGS = "$(inherited)";
 			};
 			name = Debug;
 		};
@@ -257,11 +265,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "c++0x";
 				GCC_OPTIMIZATION_LEVEL = fast;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				WARNING_CFLAGS = (
-					"-Weverything",
-					"-Wno-c++98-compat",
-					"-Wno-c++98-compat-pedantic",
-				);
+				WARNING_CFLAGS = "$(inherited)";
 			};
 			name = Release;
 		};

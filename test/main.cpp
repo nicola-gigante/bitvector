@@ -25,6 +25,11 @@
 
 using namespace bv;
 
+void test_bits();
+void test_word();
+void test_packed_view();
+void test_bitvector();
+
 void test_bitvector()
 {
     bitvector::test(std::cout, 100000, 128, false, false, false);
