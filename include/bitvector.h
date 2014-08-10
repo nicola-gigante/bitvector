@@ -31,32 +31,18 @@ namespace bv
      * This class implement a vector of bits with fast append at both sides and
      * insertion in the middle in succint space.
      *
-     * The interface of the class is as container-like as possible.
-     * The constructor takes the maximum number of bits that will be contained
-     * in the bitvector, and an optional value specifying the width of the
-     * nodes of the packed B+-tree (you can tune the value for performance)
-     *
-     * The use is straightforward:
-     *
-     *     bitvector v(100000);
-     *     
-     *     for(bool b : { true, false, false, true, true })
-     *         v.push_back(b); // Appending
-     *     
-     *     v.insert(3, false); // Insert in the middle
-     *
-     *     v[1] = true; // Sets a specific bit
-     *
-     *     std::cout << v[0] << "\n"; // Access the bits
-     *
-     * The class is copyable and movable. Moves are very fast so you can
-     * for example return a fresh bitvector by value. 
+     * See README.md for a brief explaination of the class usage
      *
      */
-    template<size_t W>
+    enum allocation_policy_t {
+        alloc_on_demand,
+        alloc_immediatly
+    };
+    
+    template<size_t, allocation_policy_t>
     struct bt_impl;
     
-    template<size_t W>
+    template<size_t W, allocation_policy_t AllocPolicy = alloc_on_demand>
     class bitvector_t
     {
         static_assert(W % bitsize<bitview_value_type>() == 0,
@@ -120,14 +106,15 @@ namespace bv
         info_t info() const;
         static void test(std::ostream &stream, size_t N, size_t Wn,
                          bool dumpinfo, bool dumpnode, bool dumpcontents);
-        template<size_t Z>
-        friend std::ostream &operator<<(std::ostream &s, bitvector_t<Z> const&v);
+        template<size_t Z, allocation_policy_t AP>
+        friend std::ostream &operator<<(std::ostream &s,
+                                        bitvector_t<Z, AP> const&v);
         
     private:
-        std::unique_ptr<bt_impl<W>> _impl;
+        std::unique_ptr<bt_impl<W, AllocPolicy>> _impl;
     };
     
-    using bitvector = bitvector_t<512>;
+    using bitvector = bitvector_t<512, alloc_on_demand>;
 }
 
 #include "internal/bitvector.hpp"

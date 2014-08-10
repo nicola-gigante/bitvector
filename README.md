@@ -45,12 +45,20 @@ bitvectors by value if you want.
 Removal operations are not implemented since they are completely non-trivial and
 are not needed by our main application of this data structure.
 
-```bitvector``` is actually a typedef for ```bitvector_t<W>```, where ```W```
-is the width in bits of the leaves of the tree, filled with a tuned default 
-value. The leaves width can only be set at compile-time with this template 
-parameter. If the performance with the default value for ```W``` doesn't fit 
-your machine/architecture/compiler, use ```bitvector_t``` and choose the most 
-suitable value.
+```bitvector``` is actually a typedef for the more generic template
+```bitvector_t<size_t W, allocation_policy_t AP>```. The parameters are:
+* ```W``` is the width in bits of the leaves of the tree, filled with a tuned 
+default value. The leaves width can only be set at compile-time with this
+template parameter. If the performance with the default value for ```W``` 
+doesn't fit your machine/architecture/compiler, use ```bitvector_t``` and choose
+the most suitable value.
+* ```AP``` is a choice between ```alloc_on_demand``` and ```alloc_immediatly```.
+The difference is that with the former, memory for the data structure is
+allocated in chunks while the data grows, while the latter implies a big 
+allocation at the beginning of all the memory needed to contain the maximum
+number of bits specified in the constructor. The option was added because the 
+second option could save some time because of the avoided allocations, but at
+first experiments it doesn't seem to make any difference.
 
 ### Auxiliary data-structures
 
@@ -102,10 +110,6 @@ reason of existence of this structure.
 
 Some work has still to be done, see TODO.txt for details.
 In a few words, it still lacks:
-* The ability to incrementally allocate the memory used for nodes and leaves
-  instead of allocating everything at once at the beginning (mainly it means
-  switching from ```std::vector``` to ```std::deque``` as the underlying 
-  storage for the nodes. Coming soon.)
 * Performance tuning and profiling
 * A serious test suite
 * More operations on the data structure. For example, the insertion of words

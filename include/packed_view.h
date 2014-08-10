@@ -75,8 +75,10 @@ namespace bv
          *          practice the data doesn't get touched
          */
         void reset(size_t width, size_t size) {
-            _width = width;
-            _field_mask = compute_field_mask(width);
+            if(width != _width) {
+                _width = width;
+                _field_mask = compute_field_mask(width);
+            }
             resize(size);
         }
         

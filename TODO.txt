@@ -1,9 +1,7 @@
 
 TODO:
- - Switch to std::deque as the underlying storage for nodes and leaves,
-   in order to not being required to allocate all the worst-case nodes in
-   advance every time.
- - Investigate other layouts for nodes in the buffer 
+ - Close internals into a private namespace
+ - Investigate other layouts for nodes in the buffer
    (driven by measurements of cache misses)
  - A serious test suite
  - Performance profiling

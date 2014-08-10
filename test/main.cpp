@@ -28,13 +28,19 @@ using namespace bv;
 void test_bits();
 void test_word();
 void test_packed_view();
-void test_bitvector();
 
+template<size_t W, allocation_policy_t AP>
 void test_bitvector()
 {
-    bitvector::test(std::cout, 100000, 128, false, false, false);
-    bitvector::test(std::cout, 100000, 256, false, false, false);
-    bitvector::test(std::cout, 100000, 512, false, false, false);
+    std::cout << "Testing with W = " << W << " and "
+              << (AP == alloc_on_demand ? "on-demand allocation\n"
+                                        : "ahead of time allocation\n");
+    
+    bitvector_t<W, AP>::test(std::cout, 100000, 128, false, false, false);
+    bitvector_t<W, AP>::test(std::cout, 100000, 256, false, false, false);
+    bitvector_t<W, AP>::test(std::cout, 100000, 512, false, false, false);
+    
+    std::cout << "\n";
 }
 
 void test_packed_view()
@@ -174,7 +180,12 @@ int main()
     test_bits();
     test_word();
     test_packed_view();
-    test_bitvector();
+    test_bitvector<256, alloc_on_demand>();
+    test_bitvector<256, alloc_immediatly>();
+    test_bitvector<512, alloc_on_demand>();
+    test_bitvector<512, alloc_immediatly>();
+    test_bitvector<1024, alloc_on_demand>();
+    test_bitvector<1024, alloc_immediatly>();
     
     return 0;
 }
