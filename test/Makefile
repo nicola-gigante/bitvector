@@ -1,10 +1,46 @@
-CLANG=clang++
-GCC=g++-4.8
+#
+# Copyright 2014 Nicola Gigante
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 
 INCLUDE_FLAGS=-I../include/
-OPTFLAGS=-Ofast -fstrict-aliasing
-CLANG_CXXFLAGS=$(INCLUDE_FLAGS) $(OPTFLAGS) -Weverything -pedantic -Wno-c++98-compat -Wno-c++98-compat-pedantic
-GCC_CXXFLAGS=$(INCLUDE_FLAGS) $(OPTFLAGS) -Wall -pedantic
+
+CLANG_CXXFLAGS=-Weverything -pedantic -Wno-c++98-compat -Wno-c++98-compat-pedantic
+GCC_CXXFLAGS=-Wall -pedantic
+
+ifndef STD
+	STD=c++11
+endif
+
+ifndef OPTFLAGS
+	OPTFLAGS=-Ofast -fstrict-aliasing
+endif
+
+CCVER=$(shell $(CXX) --version)
+
+ifneq (,$(findstring g++,$(CXX)))
+	MY_CXXFLAGS=$(GCC_CXXFLAGS) $(CXXFLAGS)
+else
+	MY_CXXFLAGS=$(CLANG_CXXFLAGS) $(CXXFLAGS)
+endif
+
+ifeq (c++,$(CXX))
+	TARGET=test
+else
+	TARGET=test-$(CXX)
+endif
 
 INCLUDES=../include/internal/bits.h \
          ../include/internal/bitvector.hpp \
@@ -12,23 +48,13 @@ INCLUDES=../include/internal/bits.h \
          ../include/packed_view.h \
          ../include/bitview.h
 
-all: test-clang test-gcc
-	@echo "Test of $(CLANG) binary" && ./test-clang && \
-     echo "Test with $(CLANG) binary completed"     || \
-     echo "Test with $(CLANG) binary failed!!"
-	@echo "Test of $(CLANG) binary" && ./test-gcc   && \
-     echo "Test with $(GCC) binary completed"       || \
-     echo "Test with $(GCC) binary failed!!"
+all: $(TARGET)
 
 nonexistent:
 
-test-clang: main.cpp $(INCLUDES)
-	@echo "Compiling test with $(CLANG)..."
-	@$(CLANG) -std=c++11 $(CLANG_CXXFLAGS) -o test-clang main.cpp
-
-test-gcc: main.cpp $(INCLUDES)
-	@echo "Compiling test with $(GCC)..."
-	@$(GCC) -std=c++11 $(GCC_CXXFLAGS) -o test-gcc main.cpp
+$(TARGET): main.cpp $(INCLUDES)
+	@echo "Compiling test with $(CXX)..."
+	@$(CXX) -std=$(STD) $(MY_CXXFLAGS) $(INCLUDE_FLAGS) $(OPTFLAGS) -o $(TARGET) main.cpp
 
 clean:
-	@rm -f test-clang test-gcc
+	@rm -f test test-*

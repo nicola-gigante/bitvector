@@ -163,41 +163,6 @@ namespace bv
         dest = (dest & zeroes) | masked;
     }
     
-    /*
-     * Returns the specified bit in the word
-     */
-    template<typename T, REQUIRES(std::is_integral<T>::value)>
-    bool bit(T word, size_t index)
-    {
-        assert(index < bitsize<T>());
-        return bool(bitfield(word, index, index + 1));
-    }
-    
-    /*
-     * Sets the specified bit
-     */
-    template<typename T, REQUIRES(std::is_integral<T>::value)>
-    void set_bit(T &word, size_t index, bool bit)
-    {
-        assert(index < bitsize<T>());
-        
-        word = (word & ~(T(1) << index)) | (T(bit) << index);
-    }
-    
-    /*
-     * Inserts the specified bit inside the word at the specified position,
-     * shifting left all the more significant bits. The MSB is lost.
-     * TODO: some of those functions will become useless after the generalization
-     *       of leaf_t. Check them for removal.
-     */
-    template<typename T, REQUIRES(std::is_integral<T>::value)>
-    T insert_bit(T word, size_t index, bool bit)
-    {
-        return static_cast<T>(bit) << index                       |
-               (bitfield(word, index, bitsize<T>()) << index + 1) |
-                bitfield(word, 0, index);
-    }
-    
     // Utility function to assert that a word fits in the given bit width.
     // In other words, the value is less than 2^w - 1
     template<typename T, REQUIRES(std::is_integral<T>::value)>

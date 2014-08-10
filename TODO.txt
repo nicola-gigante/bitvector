@@ -1,14 +1,5 @@
 
-State of the union:
- - Size of the nodes now is completely general and choosen at runtime,
-   and from initial testing seems to work.
- - Leaf size is fixed to 64 bits, needs to be generalized. This is not as 
-   trivial as it sounds because a lot of code presumes that 
-   bitview<>::value_type can be copied around like a little word, so we can't
-   simply make leaf_t be a wrapper around, say, uint64_t[4] and live happy
-   with performance (or maybe yes, who knows... we should measure)
-
-Other todos:
+TODO:
  - Switch to std::deque as the underlying storage for nodes and leaves,
    in order to not being required to allocate all the worst-case nodes in
    advance every time.
@@ -17,9 +8,10 @@ Other todos:
  - A serious test suite
  - Performance profiling
 
-Minutiae:
+In the future:
  - detect -fno-exception to switch asserts and exceptions 
    for error reporting in the API
  - Iterators (may require changes in the data structure to do it efficiently)
  - Word access and insertion
  - Word iterators
+ 
