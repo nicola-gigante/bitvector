@@ -18,7 +18,7 @@ portable. More testing is always appreciated.
 The library is header-only, so you don't need to compile anything in order to
 use it, just #include "bitvector.h" and use the class.
 
-The data structure couldn't be more easy to use. It features a container-like
+The data structure couldn't be easier to use. It features a container-like
 interface so you can use it more or less like a vector. The maximum capacity has
 to be set in advance, from the constructor. An optional second parameter to the
 constructor let you change the width (in bits) of the internal nodes of the 
@@ -42,35 +42,36 @@ The class is copyable and movable. Since
 ```sizeof(bitvector) == sizeof(void *)```, moves are very fast so you can return
 bitvectors by value if you want.
 
-Removal operations are not implemented since the are completely non-trivial and
+Removal operations are not implemented since they are completely non-trivial and
 are not needed by our main application of this data structure.
 
-bitvector is actually a typedef for bitvector_t<W>, where W is the width in bits
-of the leaves of the tree, filled with a tuned default value.
-The leaves width can only be set at compile-time with this template parameter.
-If the performance with the default value for W doesn't fit your
-machine/architecture/compiler, use bitvector_t and choose the most suitable
-value.
+```bitvector``` is actually a typedef for ```bitvector_t<W>```, where ```W```
+is the width in bits of the leaves of the tree, filled with a tuned default 
+value. The leaves width can only be set at compile-time with this template 
+parameter. If the performance with the default value for ```W``` doesn't fit 
+your machine/architecture/compiler, use ```bitvector_t``` and choose the most 
+suitable value.
 
 ### Auxiliary data-structures
 
 As a side benefit, two classes used inside bitvector could be useful on their
 own:
 * ```bitview<Container>``` is an adaptor around any container with a 
-  ```operator[]```. It instiantiate the container with elements of type uint64_t
-  and presents a uniform sequence of bits. Then you have a couple of functions
-  to set, get and copy around subsequences.
+  ```operator[]```. It instiantiates the container with elements of type
+  ```uint64_t``` and presents a uniform sequence of bits. Then you have a couple
+  of functions to set, get and copy around subsequences.
 * ```packed_view<Container>``` is built around ```bitview``` and is an adaptor
   that presents a sequence of "fields" of fixed width of arbitrary length. For
   example you can turn a vector of uint64_t into a vector of integer fields of
   18bits each. With difference from ```bitview```, this class provides a nice
-  interface with operator[] to access single fields and operator()(begin, end),
-  to access ranges of fields, where each operations (e.g. increment with +=)
-  is applied to each field in the range.
+  interface with ```operator[]``` to access single fields and 
+  ```operator()(begin, end)```, to access ranges of fields, where each 
+  operation (e.g. increment with ```+=```) is applied to each field in the
+  range.
   
 I haven't take the time yet to fully document these classes because their 
 inteface, although as generic as possible, is tied with how I use them in 
-```bitvector``` (for example, packed_view doesn't have iterators).
+```bitvector``` (for example, ```packed_view``` doesn't have iterators).
 Nonetheless, I suppose they could be useful for other purposes.
 
 ### Testings
@@ -103,8 +104,8 @@ Some work has still to be done, see TODO.txt for details.
 In a few words, it still lacks:
 * The ability to incrementally allocate the memory used for nodes and leaves
   instead of allocating everything at once at the beginning (mainly it means
-  switching from std::vector to std::deque as the underlying storage for 
-  the nodes. Coming soon.)
+  switching from ```std::vector``` to ```std::deque``` as the underlying 
+  storage for the nodes. Coming soon.)
 * Performance tuning and profiling
 * A serious test suite
 * More operations on the data structure. For example, the insertion of words
