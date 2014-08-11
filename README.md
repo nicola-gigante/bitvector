@@ -131,7 +131,7 @@ Alternatively, you can totally override the optimization-related options by
 providing a OPTFLAGS variable (although I suppose this would be rarely needed):
 
 ```
-OPTFLAGS=-O2 make
+$ OPTFLAGS=-O2 make
 ```
 
 ### Performance
