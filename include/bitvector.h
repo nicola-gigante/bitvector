@@ -29,7 +29,7 @@ namespace bv
      * === Bitvector class ===
      *
      * This class implement a vector of bits with fast append at both sides and
-     * insertion in the middle in succint space.
+     * insertion in the middle in succinct space.
      *
      * See README.md for a brief explaination of the class usage
      *
@@ -104,6 +104,7 @@ namespace bv
             const size_t leaves;
         };
         info_t info() const;
+        size_t memory() const;
         static void test(std::ostream &stream, size_t N, size_t Wn,
                          bool dumpinfo, bool dumpnode, bool dumpcontents);
         template<size_t Z, allocation_policy_t AP>

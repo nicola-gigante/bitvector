@@ -723,6 +723,7 @@ namespace bv
             size_t child, new_index;
             std::tie(child, new_index) = t.find(index);
             
+            // FIXME: sistemare il contatore rank
             return set(t.child(child), new_index, bit);
         }
     }
@@ -1268,6 +1269,7 @@ namespace bv
         double total = duration_cast<duration<double, std::ratio<1>>>(t2 - t1).count();
         stream << "Inserted " << nbits << " bits (Wn = " << Wn << ") in "
                << total << "s\n";
+        stream << "Used " << v.memory() << " bits of memory\n";
     }
     
     template<size_t W, allocation_policy_t AP>
@@ -1287,6 +1289,19 @@ namespace bv
     }
     
     template<size_t W, allocation_policy_t AP>
+    inline
+    size_t bitvector_t<W, AP>::memory() const
+    {
+        size_t m = sizeof(bt_impl<W, AP>) * 8;
+        m += _impl->sizes.size() * _impl->counter_width;
+        m += _impl->ranks.size() * _impl->counter_width;
+        m += _impl->pointers.size() * _impl->pointer_width;
+        m += _impl->leaves.size() * sizeof(typename bt_impl<W, AP>::leaf_t) * 8;
+        
+        return m;
+    }
+    
+    template<size_t W, allocation_policy_t AP>
     std::ostream &operator<<(std::ostream &s, bitvector_t<W, AP> const&v) {
         s << "Word width         = " << v._impl->node_width << " bits\n"
           << "Capacity           = " << v._impl->capacity << " bits\n"
@@ -1295,9 +1310,8 @@ namespace bv
           << "Degree             = " << v._impl->degree << "\n"
           << "b                  = " << v._impl->leaves_buffer << "\n"
           << "b'                 = " << v._impl->nodes_buffer << "\n"
-          << "Number of nodes    = " << v._impl->sizes.size() /
-                                        v._impl->degree << "\n"
-          << "Number of leaves   = " << v._impl->leaves.size() - 1 << "\n";
+          << "Number of nodes    = " << v._impl->nodes_count << "\n"
+          << "Number of leaves   = " << v._impl->leaves_count << "\n";
         return s;
     }
 }
