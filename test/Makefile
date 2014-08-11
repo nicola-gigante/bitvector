@@ -25,8 +25,23 @@ ifndef STD
 endif
 
 ifndef OPTFLAGS
-	OPTFLAGS=-Ofast -fstrict-aliasing
+	ifneq (yes,$(DEBUG))
+		ifdef ARCH
+			ARCHFLAGS=-march=$(ARCH) -mtune=generic
+		else
+			ARCHFLAGS=-mtune=generic
+		endif
+		ifneq (yes, $(ASSERTS))
+			ASSERTSFLAGS=-DNDEBUG
+		else
+			ASSERTSFLAGS=
+		endif
+		OPTFLAGS=-Ofast -fstrict-aliasing $(ASSERTSFLAGS) $(ARCHFLAGS)
+	else
+		OPTFLAGS=-O0 -ggdb
+	endif
 endif
+
 
 CCVER=$(shell $(CXX) --version)
 

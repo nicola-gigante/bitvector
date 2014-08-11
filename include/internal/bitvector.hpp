@@ -603,6 +603,8 @@ namespace bv
                                                (leaves_buffer + 1))))
                        + 1; // for the sentinel leaf at index 0
         
+        
+        
         size_t minimum_degree = nodes_buffer;
         
         // Total number of internal nodes
@@ -613,6 +615,11 @@ namespace bv
             level_count = size_t(ceil(float(level_count) / minimum_degree));
             nodes_count += level_count;
         } while(level_count > 1);
+        
+        // For values of capacity small relatively to the leaves and nodes bit
+        // size, the buffer could be greater than the maximum count.
+        leaves_count = std::max(leaves_count, leaves_buffer);
+        nodes_count = std::max(nodes_count, nodes_buffer);
         
         // Width of pointers
         pointer_width = size_t(ceil(log2(max(nodes_count, leaves_count + 1))));
@@ -646,7 +653,7 @@ namespace bv
     
     template<size_t W, allocation_policy_t AP>
     size_t bt_impl<W, AP>::alloc_node() {
-        assert(used_nodes() < nodes_count &&
+        assert(used_nodes() <= nodes_count &&
                "Maximum number of nodes exceeded");
         
         size_t node = free_node++;
@@ -659,7 +666,7 @@ namespace bv
     
     template<size_t W, allocation_policy_t AP>
     size_t bt_impl<W, AP>::alloc_leaf() {
-        assert(used_leaves() < leaves_count &&
+        assert(used_leaves() <= leaves_count &&
                "Maximum number of leaves exceeded");
         
         size_t leaf = free_leaf++;
@@ -808,8 +815,7 @@ namespace bv
                         size_t childsize = t.child(k).size();
                         assert(childsize >= minsize);
                         // Silence unused warnings in release mode
-                        (void)minsize;
-                        (void)childsize;
+                        unused(minsize, childsize);
                     }
                 }
                 

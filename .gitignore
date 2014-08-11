@@ -5,4 +5,5 @@ llvm
 llvm/*
 *~
 *.swp
-test-*
+test*
+*.dSYM

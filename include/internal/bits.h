@@ -49,6 +49,9 @@ namespace bv
     template<bool C, typename T>
     using add_const_if_t = typename add_const_if<C, T>::type;
     
+    template<typename ...Args>
+    void unused(Args&& ...) { }
+    
     // Utility function to check for an empty range,
     // used through all the code
     constexpr bool is_empty_range(size_t begin, size_t end) {
@@ -61,6 +64,7 @@ namespace bv
     inline bool check_valid_range(size_t begin, size_t end, size_t bound)
     {
         assert(is_empty_range(begin, end) || (begin < bound && end <= bound));
+        unused(begin, end, bound);
         return true;
     }
     
@@ -169,6 +173,7 @@ namespace bv
     bool ensure_bitsize(T value, size_t width)
     {
         assert(lowbits(value, width) == value);
+        unused(value, width);
         return true;
     }
     

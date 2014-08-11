@@ -82,7 +82,7 @@ inteface, although as generic as possible, is tied with how I use them in
 ```bitvector``` (for example, ```packed_view``` doesn't have iterators).
 Nonetheless, I suppose they could be useful for other purposes.
 
-### Testings
+### Testing
 
 A complete test suite is still needed. In the meantime, I have some tests of
 correctness for internal components and for the data structures itself in
@@ -97,6 +97,42 @@ $ CXX=g++ make
 ```
 
 You should end up with two binaries, test-clang++ and test-g++.
+
+The Makefile compiles with all the optimizations turned on by default. If you
+experience bugs you might want to run in debug mode, with asserts enabled, and
+report eventual failed asserts or error messages. In order to compile in debug
+mode, you supply the ```DEBUG=yes``` environment variable when running make,
+as follows:
+
+```
+$ DEBUG=yes make
+```
+
+Alternatively, you can enable asserts only, leaving optimizations turned on,
+so you can still provide useful information for debugging while being able to
+test at reasonable speed, with the ```ASSERTS``` option:
+
+```
+$ ASSERTS=yes make
+```
+
+To test for performances, you could want to tune the compiler's options that
+deal with optimization. To simply tune the architecture which the code is
+optimized for, there's the ```ARCH``` option:
+
+```
+$ ARCH=core2 make
+```
+
+Se the ```gcc (1)``` man page for the list of supported values for the 
+```-march``` options.
+
+Alternatively, you can totally override the optimization-related options by
+providing a OPTFLAGS variable (although I suppose this would be rarely needed):
+
+```
+OPTFLAGS=-O2 make
+```
 
 ### Performance
 
