@@ -725,21 +725,27 @@ namespace bv
         
         template<size_t W, allocation_policy_t AP>
         size_t bt_impl<W, AP>::getrank(subtree_const_ref t,
-                                       size_t index, size_t acc) const
+                                       size_t index, size_t prevrank) const
         {
             assert(index <= t.size() && "Index out of bounds");
+            
+            // Short circuit for special cases
+            if(index == t.size())
+                return t.rank() + prevrank;
+            
+            if(index == 0)
+                return prevrank;
+            
             if(t.is_leaf())
-                return t.leaf().popcount(0, index) + acc;
+                return t.leaf().popcount(0, index) + prevrank;
             else {
-                if(index == t.size())
-                    return t.rank();
-                
                 size_t child, new_index;
                 std::tie(child, new_index) = t.find_insert_point(index);
                 
-                size_t prevrank = child == 0 ? acc : acc + t.ranks(child - 1);
+                size_t pr = child == 0 ? prevrank
+                                       : prevrank + t.ranks(child - 1);
                 
-                return getrank(t.child(child), new_index, prevrank);
+                return getrank(t.child(child), new_index, pr);
             }
         }
         
@@ -1180,14 +1186,14 @@ namespace bv
     
     template<size_t W, allocation_policy_t AP>
     inline
-    size_t bitvector_t<W, AP>::rank(size_t index) const {
-        return _impl->getrank(_impl->root(), index, 0);
-    }
-    
-    template<size_t W, allocation_policy_t AP>
-    inline
-    size_t bitvector_t<W, AP>::zerorank(size_t index) const {
-        return index - rank(index);
+    size_t bitvector_t<W, AP>::rank(size_t index, bool bit) const
+    {
+        size_t rank = _impl->getrank(_impl->root(), index, 0);
+
+        if(!bit)
+            rank = index - rank;
+            
+        return rank;
     }
     
     template<size_t W, allocation_policy_t AP>
@@ -1347,8 +1353,15 @@ namespace bv
                     stream << b;
                 }
             }
-            assert(v.rank(ranki) == rank);
-            assert(v.rank(nbits) == totalrank);
+            size_t r1 = v.rank(ranki);
+            size_t r2 = v.rank(nbits);
+            if(r1 != rank)
+                std::cout << "FAIL: rank should be " << rank << ",\n"
+                          << "               found " << r1 << "\n";
+            
+            if(r2 != totalrank)
+                std::cout << "FAIL: total rank should be " << totalrank << ",\n"
+                          << "                     found " << r2 << "\n";
         }
         
         if(dumpcontents)
@@ -1359,6 +1372,7 @@ namespace bv
         stream << "Inserted " << nbits << " bits (Wn = " << Wn << ") in "
                << total << "s\n";
         stream << "Used " << v.memory() << " bits of memory\n";
+        stream << "Height: " << v.info().height << "\n";
     }
     
     template<size_t W, allocation_policy_t AP>

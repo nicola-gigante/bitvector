@@ -82,8 +82,7 @@ namespace bv
          * Data operations
          */
         bool access(size_t index) const;
-        size_t rank(size_t index) const;
-        size_t zerorank(size_t index) const;
+        size_t rank(size_t index, bool bit = true) const;
         void set(size_t index, bool bit);
         void insert(size_t index, bool bit);
         void push_back(bool bit);
