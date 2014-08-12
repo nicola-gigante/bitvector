@@ -61,6 +61,7 @@ namespace bv
         /*
          * Constructors, copies and moves...
          */
+        bitvector_t() = default;
         bitvector_t(size_t N, size_t Wn = 256);
         ~bitvector_t() = default;
 
@@ -75,6 +76,7 @@ namespace bv
          */
         size_t size() const;
         size_t capacity() const;
+        bool valid() const;
         bool empty() const;
         bool full() const;
         

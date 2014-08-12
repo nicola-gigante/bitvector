@@ -1,5 +1,6 @@
 
 TODO:
+ - Optimize for space when the capacity is very small
  - Test set() function
  - Investigate other layouts for nodes in the buffer
    (driven by measurements of cache misses)

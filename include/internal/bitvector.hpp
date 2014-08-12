@@ -593,8 +593,8 @@ namespace bv
             capacity = N;
             node_width = Wn;
             
-            counter_width = size_t(floor(log2(capacity)) + 1)
-            + 1; // + 1 for the extra flag bit
+            // + 1 for the extra flag bit
+            counter_width = size_t(ceil(log2(capacity))) + 1;
             
             degree = node_width / counter_width;
             
@@ -610,7 +610,7 @@ namespace bv
             leaves_count = size_t(ceil(capacity / ((leaves_buffer *
                                                     (leaf_bits - leaves_buffer))
                                                   / (leaves_buffer + 1))))
-            + 1; // for the sentinel leaf at index 0
+                           + 1; // for the sentinel leaf at index 0
             
             size_t minimum_degree = nodes_buffer;
             
@@ -623,14 +623,13 @@ namespace bv
                 nodes_count += level_count;
             } while(level_count > 1);
             
-            // For values of capacity small relatively to the leaves and nodes
+            // For values of small capacity relatively to the leaves and nodes
             // bit size, the buffer could be greater than the maximum count.
             leaves_count = std::max(leaves_count, leaves_buffer);
             nodes_count = std::max(nodes_count, nodes_buffer);
             
             // Width of pointers
-            pointer_width = size_t(floor(log2(max(nodes_count,
-                                                  leaves_count + 1))) + 1);
+            pointer_width = size_t(ceil(log2(max(nodes_count, leaves_count))));
             
             assert(pointer_width <= counter_width);
             assert(pointer_width * (degree + 1) <= node_width);
@@ -1159,28 +1158,60 @@ namespace bv
     template<size_t W, allocation_policy_t AP>
     inline
     bitvector_t<W, AP>::bitvector_t(bitvector_t const&other)
-        : _impl(new internal::bt_impl<W, AP>(*other._impl)) { }
+        : _impl(other.valid() ? new internal::bt_impl<W, AP>(*other._impl)
+                              : nullptr) { }
     
     template<size_t W, allocation_policy_t AP>
     inline
     bitvector_t<W, AP> &bitvector_t<W, AP>::operator=(bitvector_t const&other) {
-        *_impl = *other._impl;
+        if(!valid()) {
+            if(other.valid())
+                _impl = new internal::bt_impl<W, AP>(*other._impl);
+        } else {
+            if(other.valid())
+                *_impl = *other._impl;
+            else
+                _impl = nullptr;
+        }
+        
         return *this;
     }
     
     template<size_t W, allocation_policy_t AP>
     inline
-    bool bitvector_t<W, AP>::empty() const { return _impl->size == 0; }
+    size_t bitvector_t<W, AP>::size() const {
+        return valid() ? _impl->size : 0;
+    }
+    
+    template<size_t W, allocation_policy_t AP>
+    inline
+    size_t bitvector_t<W, AP>::capacity() const {
+        return valid() ? _impl->capacity : 0;
+    }
+    
+    template<size_t W, allocation_policy_t AP>
+    inline
+    bool bitvector_t<W, AP>::valid() const {
+        return bool(_impl);
+    }
+    
+    template<size_t W, allocation_policy_t AP>
+    inline
+    bool bitvector_t<W, AP>::empty() const {
+        return !valid() || size() == 0;
+    }
     
     template<size_t W, allocation_policy_t AP>
     inline
     bool bitvector_t<W, AP>::full() const {
-        return _impl->size == _impl->capacity;
+        return valid() && size() == capacity();
     }
     
     template<size_t W, allocation_policy_t AP>
     inline
     bool bitvector_t<W, AP>::access(size_t index) const {
+        assert(valid() && "Can't access an uninitialized vector");
+        assert(index < size() && "Index out of bounds");
         return _impl->access(_impl->root(), index);
     }
     
@@ -1188,6 +1219,7 @@ namespace bv
     inline
     size_t bitvector_t<W, AP>::rank(size_t index, bool bit) const
     {
+        assert(valid() && "Can't access an uninitialized vector");
         size_t rank = _impl->getrank(_impl->root(), index, 0);
 
         if(!bit)
@@ -1199,38 +1231,43 @@ namespace bv
     template<size_t W, allocation_policy_t AP>
     inline
     void bitvector_t<W, AP>::set(size_t index, bool bit) {
+        assert(valid() && "Can't access an uninitialized vector");
         return _impl->set(_impl->root(), index, bit);
     }
     
     template<size_t W, allocation_policy_t AP>
     inline
     void bitvector_t<W, AP>::insert(size_t index, bool bit) {
+        assert(valid() && "Can't access an uninitialized vector");
         _impl->insert(_impl->root(), index, bit);
     }
     
     template<size_t W, allocation_policy_t AP>
     inline
     auto bitvector_t<W, AP>::operator[](size_t index) -> reference {
-        assert(index < size());
+        assert(index < size() && "Index out of bounds");
         return { *this, index };
     }
     
     template<size_t W, allocation_policy_t AP>
     inline
     auto bitvector_t<W, AP>::operator[](size_t index) const -> const_reference {
-        assert(index < size());
+        assert(index < size() && "Index out of bounds");
         return { *this, index };
     }
     
     template<size_t W, allocation_policy_t AP>
     inline
     void bitvector_t<W, AP>::push_back(bool bit) {
+        assert(valid() && "Can't access an uninitialized vector");
+               
         insert(size(), bit);
     }
     
     template<size_t W, allocation_policy_t AP>
     inline
     void bitvector_t<W, AP>::push_front(bool bit) {
+        assert(valid() && "Can't access an uninitialized vector");
         insert(0, bit);
     }
     
@@ -1304,6 +1341,8 @@ namespace bv
         if(dumpinfo)
             stream << v << "\n";
         
+        assert(v.empty());
+        
         size_t nbits = N;
         
         std::mt19937 engine(42);
@@ -1320,6 +1359,8 @@ namespace bv
         v.insert(indexes.at(nbits - 1).first, indexes.at(nbits - 1).second);
         auto t2 = high_resolution_clock::now();
         
+        assert(v.full());
+        
         if(dumpnode) {
             stream << "\n" << v._impl->root() << "\n";
             if(v._impl->root().height() > 1) {
@@ -1331,7 +1372,6 @@ namespace bv
                 }
             }
         }
-        
         
         if(testrank || dumpcontents) {
             size_t ranki = nbits/2;
@@ -1379,6 +1419,7 @@ namespace bv
     inline
     auto bitvector_t<W, AP>::info() const -> info_t
     {
+        assert(valid() && "Can't access an uninitialized vector");
         return { _impl->capacity,
                  _impl->size,
                  _impl->height,
@@ -1396,6 +1437,7 @@ namespace bv
     inline
     size_t bitvector_t<W, AP>::memory() const
     {
+        assert(valid() && "Can't access an uninitialized vector");
         size_t m = sizeof(internal::bt_impl<W, AP>) * 8;
         m += _impl->sizes.size() * _impl->counter_width;
         m += _impl->ranks.size() * _impl->counter_width;
@@ -1408,6 +1450,8 @@ namespace bv
     
     template<size_t W, allocation_policy_t AP>
     std::ostream &operator<<(std::ostream &s, bitvector_t<W, AP> const&v) {
+        assert(v.valid() && "Can't access an uninitialized vector");
+        
         s << "Word width         = " << v._impl->node_width << " bits\n"
           << "Capacity           = " << v._impl->capacity << " bits\n"
           << "Size counter width = " << v._impl->counter_width << " bits\n"

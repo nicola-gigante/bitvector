@@ -35,10 +35,11 @@ void test_bitvector()
     std::cout << "Testing with W = " << W << " and "
               << (AP == alloc_on_demand ? "on-demand allocation\n"
                                         : "ahead of time allocation\n");
+    size_t N = 1000000;
     
-    bitvector_t<W, AP>::test(std::cout, 100000, 128, false, false, false, false);
-    bitvector_t<W, AP>::test(std::cout, 100000, 256, false, false, false, false);
-    bitvector_t<W, AP>::test(std::cout, 100000, 512, false, false, false, false);
+    bitvector_t<W, AP>::test(std::cout, N, 128, false, false, false, false);
+    bitvector_t<W, AP>::test(std::cout, N, 256, false, false, false, false);
+    bitvector_t<W, AP>::test(std::cout, N, 512, false, false, false, false);
     
     std::cout << "\n";
 }
@@ -184,6 +185,8 @@ int main()
     test_bitvector<256, alloc_immediatly>();
     test_bitvector<512, alloc_on_demand>();
     test_bitvector<512, alloc_immediatly>();
+    test_bitvector<2048, alloc_on_demand>();
+    test_bitvector<2048, alloc_immediatly>();
     test_bitvector<4096, alloc_on_demand>();
     test_bitvector<4096, alloc_immediatly>();
     
