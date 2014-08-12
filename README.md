@@ -36,6 +36,7 @@ v.insert(3, false); // Insert in the middle
 v[1] = true; // Sets a specific bit
 
 std::cout << v[0] << "\n"; // Access the bits
+std::cout << v.rank(3) << "\n"; // Number of set bits before index 3 (e.g. 2)
 ```
 
 The class is copyable and movable. Since 
@@ -124,7 +125,7 @@ optimized for, there's the ```ARCH``` option:
 $ ARCH=core2 make
 ```
 
-Se the ```gcc (1)``` man page for the list of supported values for the 
+See the ```gcc (1)``` man page for the list of supported values for the 
 ```-march``` options.
 
 Alternatively, you can totally override the optimization-related options by

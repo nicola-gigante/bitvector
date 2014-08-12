@@ -35,168 +35,172 @@ typename = typename std::enable_if<(__VA_ARGS__)>::type
 
 namespace bv
 {
-    // Utility trait alias for std::conditional.
-    // Would be standard if we used C++14
-    template<bool C, typename T, typename F>
-    using conditional_t = typename std::conditional<C, T, F>::type;
-    
-    // Utility trait type to conditionally add constness to a type
-    template<bool C, typename T>
-    struct add_const_if {
-        using type = conditional_t<C, T const, T>;
-    };
-    
-    template<bool C, typename T>
-    using add_const_if_t = typename add_const_if<C, T>::type;
-    
-    template<typename ...Args>
-    void unused(Args&& ...) { }
-    
-    // Utility function to check for an empty range,
-    // used through all the code
-    constexpr bool is_empty_range(size_t begin, size_t end) {
-        return begin >= end;
-    }
-    
-    // Utility function to assert a valid range
-    // Note that an empty range is always valid regardless of the value of
-    // the bounds used to represent it
-    inline bool check_valid_range(size_t begin, size_t end, size_t bound)
-    {
-        assert(is_empty_range(begin, end) || (begin < bound && end <= bound));
-        unused(begin, end, bound);
-        return true;
-    }
-    
-    // Returns the bit size of the given type
-    template<typename T, REQUIRES(std::is_integral<T>::value)>
-    constexpr size_t bitsize() {
-        return sizeof(T) * CHAR_BIT;
-    }
-    
-    /*
-     * Count the number of set bits in a word
-     */
-    template<typename T, REQUIRES(std::is_integral<T>::value)>
-    constexpr size_t popcount(T value)
-    {
-        static_assert(std::is_same<T, uint64_t>::value,
-                      "Popcount is unimplemented for types other than uint64_t");
-        // TODO: Check the availability of __builtin_popcountll
-        return size_t(__builtin_popcountll(value));
-    }
-    
-    /*
-     * Bitmasking functions
-     */
-    
-    /*
-     * Returns a mask word for ask with bits set in the interval [begin, end)
-     */
-    template<typename T, REQUIRES(std::is_integral<T>::value)>
-    T mask(size_t begin, size_t end)
-    {
-        constexpr size_t W = bitsize<T>();
+    namespace internal {
+        // Utility trait alias for std::conditional.
+        // Would be standard if we used C++14
+        template<bool C, typename T, typename F>
+        using conditional_t = typename std::conditional<C, T, F>::type;
         
-        if(is_empty_range(begin, end))
-            return 0;
+        // Utility trait type to conditionally add constness to a type
+        template<bool C, typename T>
+        struct add_const_if {
+            using type = conditional_t<C, T const, T>;
+        };
         
-        check_valid_range(begin, end, W);
+        template<bool C, typename T>
+        using add_const_if_t = typename add_const_if<C, T>::type;
         
-        constexpr T ff = std::numeric_limits<T>::max();
+        template<typename ...Args>
+        void unused(Args&& ...) { }
         
-        return ((ff << (W - end)) >> (W - end + begin)) << begin;
-    }
-    
-    /*
-     * Returns the lower n bits in the word
-     */
-    template<typename T, REQUIRES(std::is_integral<T>::value)>
-    T lowbits(T val, size_t n)
-    {
-        assert(n <= bitsize<T>());
-        
-        return val & mask<T>(0, n);
-    }
-    
-    /*
-     * Returns the higher n bits in the word.
-     * Note that bits are not shifted, simply lower bits get masked away.
-     */
-    template<typename T, REQUIRES(std::is_integral<T>::value)>
-    T highbits(T val, size_t n)
-    {
-        constexpr size_t W = bitsize<T>();
-        
-        assert(n <= W);
-        
-        return val & mask<T>(W - n, W);
-    }
-    
-    /*
-     * Returns the _value_ contained in the bits in the interval [begin, end)
-     */
-    template<typename T, REQUIRES(std::is_integral<T>::value)>
-    T bitfield(T val, size_t begin, size_t end)
-    {
-        constexpr size_t W = bitsize<T>();
-        
-        if(is_empty_range(begin, end))
-            return 0;
-        
-        check_valid_range(begin, end, W);
-        
-        return lowbits(highbits(val, W - begin) >> begin, end - begin);
-    }
-    
-    /*
-     * Set the value of the bits in the interval [begin, end) to the
-     * corresponding low bits of 'value'
-     */
-    template<typename T>
-    void set_bitfield(T &dest, size_t begin, size_t end, T value)
-    {
-        if(is_empty_range(begin, end))
-            return;
-        
-        check_valid_range(begin, end, bitsize<T>());
-        
-        T masked = lowbits(value, end - begin) << begin;
-        T zeroes = ~mask<T>(begin, end);
-        
-        dest = (dest & zeroes) | masked;
-    }
-    
-    // Utility function to assert that a word fits in the given bit width.
-    // In other words, the value is less than 2^w - 1
-    template<typename T, REQUIRES(std::is_integral<T>::value)>
-    bool ensure_bitsize(T value, size_t width)
-    {
-        assert(lowbits(value, width) == value);
-        unused(value, width);
-        return true;
-    }
-    
-    /*
-     * Render the word as a binary string.
-     * Every 'sep' bits, the char ssep is printed.
-     */
-    template<typename T, REQUIRES(std::is_integral<T>::value)>
-    std::string to_binary(T val, size_t sep = 8, char ssep = ' ')
-    {
-        std::string s;
-        constexpr size_t W = sizeof(T) * 8;
-        
-        for(size_t i = 0; i < W; i++)
-        {
-            if(i && i % sep == 0)
-                s += ssep;
-            s += val % 2 ? '1' : '0';
-            val = val / 2;
+        // Utility function to check for an empty range,
+        // used through all the code
+        constexpr bool is_empty_range(size_t begin, size_t end) {
+            return begin >= end;
         }
         
-        std::reverse(s.begin(), s.end());
-        return s;
-    }
+        // Utility function to assert a valid range
+        // Note that an empty range is always valid regardless of the value of
+        // the bounds used to represent it
+        inline bool check_valid_range(size_t begin, size_t end, size_t bound)
+        {
+            assert(is_empty_range(begin, end) ||
+                   (begin < bound && end <= bound));
+            unused(begin, end, bound);
+            return true;
+        }
+        
+        // Returns the bit size of the given type
+        template<typename T, REQUIRES(std::is_integral<T>::value)>
+        constexpr size_t bitsize() {
+            return sizeof(T) * CHAR_BIT;
+        }
+        
+        /*
+         * Count the number of set bits in a word
+         */
+        template<typename T, REQUIRES(std::is_integral<T>::value)>
+        constexpr size_t popcount(T value)
+        {
+            static_assert(std::is_same<T, uint64_t>::value,
+                          "Popcount is implemented only for uint64_t");
+            // TODO: Check the availability of __builtin_popcountll
+            return size_t(__builtin_popcountll(value));
+        }
+        
+        /*
+         * Bitmasking functions
+         */
+        
+        /*
+         * Returns a mask word for ask with bits set in the interval [begin, end)
+         */
+        template<typename T, REQUIRES(std::is_integral<T>::value)>
+        T mask(size_t begin, size_t end)
+        {
+            constexpr size_t W = bitsize<T>();
+            
+            if(is_empty_range(begin, end))
+                return 0;
+            
+            check_valid_range(begin, end, W);
+            
+            constexpr T ff = std::numeric_limits<T>::max();
+            
+            return ((ff << (W - end)) >> (W - end + begin)) << begin;
+        }
+        
+        /*
+         * Returns the lower n bits in the word
+         */
+        template<typename T, REQUIRES(std::is_integral<T>::value)>
+        T lowbits(T val, size_t n)
+        {
+            assert(n <= bitsize<T>());
+            
+            return val & mask<T>(0, n);
+        }
+        
+        /*
+         * Returns the higher n bits in the word.
+         * Note that bits are not shifted, simply lower bits get masked away.
+         */
+        template<typename T, REQUIRES(std::is_integral<T>::value)>
+        T highbits(T val, size_t n)
+        {
+            constexpr size_t W = bitsize<T>();
+            
+            assert(n <= W);
+            
+            return val & mask<T>(W - n, W);
+        }
+        
+        /*
+         * Returns the _value_ contained in the bits in the interval [begin, end)
+         */
+        template<typename T, REQUIRES(std::is_integral<T>::value)>
+        T bitfield(T val, size_t begin, size_t end)
+        {
+            constexpr size_t W = bitsize<T>();
+            
+            if(is_empty_range(begin, end))
+                return 0;
+            
+            check_valid_range(begin, end, W);
+            
+            return lowbits(highbits(val, W - begin) >> begin, end - begin);
+        }
+        
+        /*
+         * Set the value of the bits in the interval [begin, end) to the
+         * corresponding low bits of 'value'
+         */
+        template<typename T>
+        void set_bitfield(T &dest, size_t begin, size_t end, T value)
+        {
+            if(is_empty_range(begin, end))
+                return;
+            
+            check_valid_range(begin, end, bitsize<T>());
+            
+            T masked = lowbits(value, end - begin) << begin;
+            T zeroes = ~mask<T>(begin, end);
+            
+            dest = (dest & zeroes) | masked;
+        }
+        
+        // Utility function to assert that a word fits in the given bit width.
+        // In other words, the value is less than 2^w - 1
+        template<typename T, REQUIRES(std::is_integral<T>::value)>
+        bool ensure_bitsize(T value, size_t width)
+        {
+            assert(lowbits(value, width) == value);
+            unused(value, width);
+            return true;
+        }
+        
+        /*
+         * Render the word as a binary string.
+         * Every 'sep' bits, the char ssep is printed.
+         */
+        template<typename T, REQUIRES(std::is_integral<T>::value)>
+        std::string to_binary(T val, size_t sep = 8, char ssep = ' ')
+        {
+            std::string s;
+            constexpr size_t W = sizeof(T) * 8;
+            
+            for(size_t i = 0; i < W; i++)
+            {
+                if(i && i % sep == 0)
+                    s += ssep;
+                s += val % 2 ? '1' : '0';
+                val = val / 2;
+            }
+            
+            std::reverse(s.begin(), s.end());
+            return s;
+        }
+        
+    } // namespace internal
 } // namespace bv
 #endif

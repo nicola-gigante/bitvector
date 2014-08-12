@@ -1,6 +1,6 @@
 
 TODO:
- - Close internals into a private namespace
+ - Test set() function
  - Investigate other layouts for nodes in the buffer
    (driven by measurements of cache misses)
  - A serious test suite

@@ -39,13 +39,15 @@ namespace bv
         alloc_immediatly
     };
     
-    template<size_t, allocation_policy_t>
-    struct bt_impl;
+    namespace internal {
+        template<size_t, allocation_policy_t>
+        struct bt_impl;
+    }
     
     template<size_t W, allocation_policy_t AllocPolicy = alloc_on_demand>
     class bitvector_t
     {
-        static_assert(W % bitsize<bitview_value_type>() == 0,
+        static_assert(W % internal::bitsize<internal::bitview_value_type>() == 0,
                       "You must choose a number of bits that is multiple "
                       "of the word size");
     public:
@@ -80,6 +82,8 @@ namespace bv
          * Data operations
          */
         bool access(size_t index) const;
+        size_t rank(size_t index) const;
+        size_t zerorank(size_t index) const;
         void set(size_t index, bool bit);
         void insert(size_t index, bool bit);
         void push_back(bool bit);
@@ -95,6 +99,7 @@ namespace bv
         struct info_t {
             const size_t capacity;
             const size_t size;
+            const size_t height;
             const size_t node_width;
             const size_t counter_width;
             const size_t pointer_width;
@@ -106,19 +111,19 @@ namespace bv
         info_t info() const;
         size_t memory() const;
         static void test(std::ostream &stream, size_t N, size_t Wn,
-                         bool dumpinfo, bool dumpnode, bool dumpcontents);
+                         bool testrank, bool dumpinfo,
+                         bool dumpnode, bool dumpcontents);
         template<size_t Z, allocation_policy_t AP>
         friend std::ostream &operator<<(std::ostream &s,
                                         bitvector_t<Z, AP> const&v);
         
     private:
-        std::unique_ptr<bt_impl<W, AllocPolicy>> _impl;
+        std::unique_ptr<internal::bt_impl<W, AllocPolicy>> _impl;
     };
     
     using bitvector = bitvector_t<512, alloc_on_demand>;
 }
 
 #include "internal/bitvector.hpp"
-
 
 #endif // BITVECTOR_H

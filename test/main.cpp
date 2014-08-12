@@ -36,9 +36,9 @@ void test_bitvector()
               << (AP == alloc_on_demand ? "on-demand allocation\n"
                                         : "ahead of time allocation\n");
     
-    bitvector_t<W, AP>::test(std::cout, 100000000, 128, false, false, false);
-    bitvector_t<W, AP>::test(std::cout, 100000000, 256, false, false, false);
-    bitvector_t<W, AP>::test(std::cout, 100000000, 512, false, false, false);
+    bitvector_t<W, AP>::test(std::cout, 100000, 128, false, false, false, false);
+    bitvector_t<W, AP>::test(std::cout, 100000, 256, false, false, false, false);
+    bitvector_t<W, AP>::test(std::cout, 100000, 512, false, false, false, false);
     
     std::cout << "\n";
 }
@@ -152,9 +152,9 @@ void test_bits()
 {
     uint64_t val = 0x0000000000000000;
 
-    set_bitfield(val, 16, 16 + 8, uint64_t(42));
+    bv::internal::set_bitfield(val, 16, 16 + 8, uint64_t(42));
     
-    assert(bitfield(val, 16, 16 + 8) == 42);
+    assert(bv::internal::bitfield(val, 16, 16 + 8) == 42);
     
     bitview<std::vector> w(64);
     
