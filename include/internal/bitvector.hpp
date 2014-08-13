@@ -109,13 +109,9 @@ namespace bv
             // Number of counters per node, refered as d in the paper
             size_t degree = 0;
             
-            // Number of leaves used for redistribution for ammortized
-            // constant insertion time. Refered as b in the paper
-            size_t leaves_buffer = 0;
-            
-            // Number of leaves used for redistribution for ammortized
-            // constant insertion time. Refered as b' in the paper
-            size_t nodes_buffer = 0;
+            // Number of nodes used for redistribution of keys/bits when
+            // the insertion find a full node/leaf
+            size_t buffer = 0;
             
             // Number of leaves needed in the worst-case
             size_t leaves_count = 0;
@@ -293,7 +289,7 @@ namespace bv
             // A full node has d + 1 children
             bool is_full() const {
                 return is_leaf() ? size() == leaf_bits
-                : nchildren() == degree() + 1;
+                                 : nchildren() == degree() + 1;
             }
             
             // This method creates a subtree_ref for the child at index k,
@@ -316,8 +312,8 @@ namespace bv
                 
                 // Rank of the subtree
                 size_t r = k == 0        ? ranks(k) :
-                k == degree() ? rank()   - ranks(k - 1) :
-                ranks(k) - ranks(k - 1);
+                           k == degree() ? rank()   - ranks(k - 1) :
+                                           ranks(k) - ranks(k - 1);
                 
                 return { _vector, p, h, s, r };
             }
@@ -566,13 +562,7 @@ namespace bv
                 }
                 
                 pointers(k) = _height == 1 ? _vector.alloc_leaf()
-                : _vector.alloc_node();
-            }
-            
-            void clear_keys(size_t begin, size_t end) const
-            {
-                sizes(begin, end) = 0;
-                ranks(begin, end) = 0;
+                                           : _vector.alloc_node();
             }
             
             // This is a modifying method because the copy needs to
@@ -619,21 +609,17 @@ namespace bv
             
             degree = node_width / counter_width;
             
-            for(nodes_buffer = max(size_t(ceil(sqrt(degree))), size_t(1));
-                floor((degree + 1)/nodes_buffer) < nodes_buffer;
-                --nodes_buffer);
-            
-            // b and b' were different parameters before. Let them still
-            // be different variables, just in case...
-            leaves_buffer = nodes_buffer;
+            for(buffer = max(size_t(ceil(sqrt(degree))), size_t(1));
+                floor((degree + 1)/buffer) < buffer;
+                --buffer);
             
             // Maximum number of leaves needed in the worst case
-            leaves_count = size_t(ceil(capacity / ((leaves_buffer *
-                                                    (leaf_bits - leaves_buffer))
-                                                  / (leaves_buffer + 1))))
+            leaves_count = size_t(ceil(capacity / ((buffer *
+                                                    (leaf_bits - buffer))
+                                                  / (buffer + 1))))
                            + 1; // for the sentinel leaf at index 0
             
-            size_t minimum_degree = nodes_buffer;
+            size_t minimum_degree = buffer;
             
             // Total number of internal nodes
             nodes_count = 0;
@@ -646,8 +632,8 @@ namespace bv
             
             // For values of small capacity relatively to the leaves and nodes
             // bit size, the buffer could be greater than the maximum count.
-            leaves_count = max(leaves_count, leaves_buffer);
-            nodes_count = max(nodes_count, nodes_buffer);
+            leaves_count = max(leaves_count, buffer + 1);
+            nodes_count = max(nodes_count, buffer + 1);
             
             // Width of pointers
             pointer_width = size_t(ceil(log2(max(nodes_count, leaves_count))));
@@ -683,7 +669,7 @@ namespace bv
         
         template<size_t W, allocation_policy_t AP>
         size_t bt_impl<W, AP>::alloc_node() {
-            assert(used_nodes() <= nodes_count &&
+            assert(used_nodes() < nodes_count &&
                    "Maximum number of nodes exceeded");
             
             size_t node = free_node++;
@@ -696,7 +682,7 @@ namespace bv
         
         template<size_t W, allocation_policy_t AP>
         size_t bt_impl<W, AP>::alloc_leaf() {
-            assert(used_leaves() <= leaves_count &&
+            assert(used_leaves() < leaves_count &&
                    "Maximum number of leaves exceeded");
             
             size_t leaf = free_leaf++;
@@ -927,12 +913,11 @@ namespace bv
                                                size_t child)
         {
             const bool is_leaf = t.child(child).is_leaf();
-            const size_t buffer = is_leaf ? leaves_buffer : nodes_buffer;
             const size_t max_count = is_leaf ? leaf_bits : (degree + 1);
             const auto count = [&](size_t i) {
                 return t.pointers(i) == 0 ? max_count :
-                is_leaf            ? leaf_bits - t.child(i).size() :
-                (degree + 1) - t.child(i).nchildren();
+                       is_leaf            ? leaf_bits - t.child(i).size() :
+                                            (degree + 1) - t.child(i).nchildren();
             };
             
             size_t begin = child >= buffer ? child - buffer + 1 : 0;
@@ -1004,8 +989,8 @@ namespace bv
         template<size_t W, allocation_policy_t AP>
         size_t bt_impl<W, AP>::split_limit(subtree_ref t)
         {
-            return t.height() == 1 ? leaves_buffer * (leaf_bits - leaves_buffer)
-                                   : nodes_buffer * (nodes_buffer + 1) ;
+            return t.height() == 1 ? buffer * (leaf_bits - buffer)
+                                   : buffer * (buffer + 1) ;
         }
         
         template<size_t W, allocation_policy_t AP>
@@ -1030,7 +1015,7 @@ namespace bv
             size_t bits_per_leaf = count / b; // Average number of bits per leaf
             size_t rem           = count % b; // Remainder
             
-            assert(b == leaves_buffer || b == leaves_buffer + 1);
+            assert(b == buffer || b == buffer + 1);
             
             // Here we use the existing abstraction of packed_view
             // to accumulate all the bits into a temporary buffer, and
@@ -1065,7 +1050,7 @@ namespace bv
                 if(t.pointers(i) == 0)
                     t.insert_child(i);
                 
-                // Take the bits out of the buffer put them back into the leaf
+                // Take the bits out of the buffer, put them back into the leaf
                 leaf_reference leaf = t.child(i).leaf();
                 leaf.clear();
                 leaf.copy(bits, p, p + n, 0, leaf.size());
@@ -1082,11 +1067,11 @@ namespace bv
             assert(count == 0);
             // This is debug code
             // It's important to stay in shape and not get too fat
-            if(size >= (leaves_buffer * (leaf_bits - leaves_buffer))) {
+            if(size >= (buffer * (leaf_bits - buffer))) {
                 for(size_t k = begin; k < end; ++k) {
-                    size_t minsize = (leaves_buffer *
-                                      (leaf_bits - leaves_buffer)) /
-                                     (leaves_buffer + 1);
+                    size_t minsize = (buffer *
+                                      (leaf_bits - buffer)) /
+                                     (buffer + 1);
                     size_t childsize = t.child(k).size();
                     assert(childsize >= minsize);
                     unused(minsize, childsize);
@@ -1105,7 +1090,7 @@ namespace bv
             size_t keys_per_node = count / b;
             size_t rem           = count % b;
             
-            assert(b == nodes_buffer || b == nodes_buffer + 1);
+            assert(b == buffer || b == buffer + 1);
             
             struct pointer {
                 size_t size;
@@ -1114,7 +1099,7 @@ namespace bv
             };
             
             std::vector<pointer> ptrs;
-            ptrs.reserve(nodes_buffer * (degree + 1));
+            ptrs.reserve(buffer * (degree + 1));
             
             for(size_t i = begin; i != end; ++i) {
                 if(t.pointers(i) != 0) {
@@ -1452,7 +1437,7 @@ namespace bv
                  _impl->counter_width,
                  _impl->pointer_width,
                  _impl->degree,
-                 _impl->nodes_buffer,
+                 _impl->buffer,
                  _impl->sizes.size() / std::max(_impl->degree, size_t(1)),
                  _impl->leaves.size()
         };
@@ -1484,8 +1469,7 @@ namespace bv
           << "Size counter width = " << v._impl->counter_width << " bits\n"
           << "Pointers width     = " << v._impl->pointer_width << " bits\n"
           << "Degree             = " << v._impl->degree << "\n"
-          << "b                  = " << v._impl->leaves_buffer << "\n"
-          << "b'                 = " << v._impl->nodes_buffer << "\n"
+          << "b                  = " << v._impl->buffer << "\n"
           << "Number of nodes    = " << v._impl->nodes_count << "\n"
           << "Number of leaves   = " << v._impl->leaves_count << "\n";
         return s;

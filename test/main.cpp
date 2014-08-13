@@ -28,20 +28,16 @@ using namespace bv;
 void test_bits();
 void test_word();
 void test_packed_view();
+void test_bitvector();
 
-template<size_t W, allocation_policy_t AP>
 void test_bitvector()
 {
-    std::cout << "Testing with W = " << W << " and "
-              << (AP == alloc_on_demand ? "on-demand allocation\n"
-                                        : "ahead of time allocation\n");
-    size_t N = 1000000;
+    constexpr size_t W = 2048;
+    constexpr allocation_policy_t AP = alloc_on_demand;
+    size_t N = 100000;
+    size_t Wn = 256;
     
-    bitvector_t<W, AP>::test(std::cout, N, 128, false, false, false, false);
-    bitvector_t<W, AP>::test(std::cout, N, 256, false, false, false, false);
-    bitvector_t<W, AP>::test(std::cout, N, 512, false, false, false, false);
-    
-    std::cout << "\n";
+    bitvector_t<W, AP>::test(std::cout, N, Wn, false, false, false, false);
 }
 
 void test_packed_view()
@@ -181,14 +177,7 @@ int main()
     test_bits();
     test_word();
     test_packed_view();
-    test_bitvector<256, alloc_on_demand>();
-    test_bitvector<256, alloc_immediatly>();
-    test_bitvector<512, alloc_on_demand>();
-    test_bitvector<512, alloc_immediatly>();
-    test_bitvector<2048, alloc_on_demand>();
-    test_bitvector<2048, alloc_immediatly>();
-    test_bitvector<4096, alloc_on_demand>();
-    test_bitvector<4096, alloc_immediatly>();
+    test_bitvector();
     
     return 0;
 }
