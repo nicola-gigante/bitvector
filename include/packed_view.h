@@ -62,7 +62,10 @@ namespace bv
             bitview<Container>       bits()       { return _bits; }
             
             // The number of fields contained in the packed_view
-            size_t size() const { return _bits.size() / _width; }
+            size_t size() const {
+                return _bits.size() ? _bits.size() / _width
+                                    : 0;
+            }
             
             // The number of bits for each field
             size_t width() const { return _width; }

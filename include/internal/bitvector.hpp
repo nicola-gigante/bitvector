@@ -41,6 +41,7 @@ namespace bv
         using std::min;
         using std::max;
         using std::log10;
+        using std::tie;
         
         /*
          * Private implementation class for bitvector
@@ -61,8 +62,8 @@ namespace bv
             // leaves
             template<typename T>
             using data_container = conditional_t<AllocPolicy == alloc_on_demand,
-            std::deque<T>,
-            std::vector<T>>;
+                                                 std::deque<T>,
+                                                 std::vector<T>>;
             
             using packed_data = packed_view<data_container>;
             using field_type = typename packed_data::value_type;
@@ -85,10 +86,10 @@ namespace bv
              */
             // Maximum number of bits stored in the vector
             // Refered as N in the paper
-            size_t capacity;
+            size_t capacity = 0;
             
             // Number of bits used for a node
-            size_t node_width;
+            size_t node_width = 0;
             
             // Current number of bits stored in the bitvector
             size_t size = 0;
@@ -97,30 +98,30 @@ namespace bv
             size_t rank = 0;
             
             // Height of the tree (distance of the root node from the leaves)
-            size_t height = 1;
+            size_t height = 0;
             
             // Bit width of the nodes' counters inside nodes' words
-            size_t counter_width;
+            size_t counter_width = 0;
             
             // Bit width of nodes' pointers
-            size_t pointer_width;
+            size_t pointer_width = 0;
             
             // Number of counters per node, refered as d in the paper
-            size_t degree;
+            size_t degree = 0;
             
             // Number of leaves used for redistribution for ammortized
             // constant insertion time. Refered as b in the paper
-            size_t leaves_buffer;
+            size_t leaves_buffer = 0;
             
             // Number of leaves used for redistribution for ammortized
             // constant insertion time. Refered as b' in the paper
-            size_t nodes_buffer;
+            size_t nodes_buffer = 0;
             
             // Number of leaves needed in the worst-case
-            size_t leaves_count;
+            size_t leaves_count = 0;
             
             // Number of internal nodes needed in the worst-case
-            size_t nodes_count;
+            size_t nodes_count = 0;
             
             // Index of the first unused node in the nodes arrays
             size_t free_node = 0;
@@ -128,7 +129,7 @@ namespace bv
             // Index of the first unused leaf in the leaves array
             // Starts from 1 because of the unused sentinel for null pointers to
             // leaves (not needed for internal nodes)
-            size_t free_leaf = 1;
+            size_t free_leaf = 0;
             
             // Packed arrays of data representing the nodes
             packed_data sizes;
@@ -150,6 +151,10 @@ namespace bv
             // these two do something different.
             size_t used_leaves() const { return free_leaf; }
             size_t used_nodes() const { return free_node; }
+            
+            // When all the capacity fits into a single leaf we switch to a
+            // cheaper mode
+            bool small() const { return capacity <= leaf_bits; }
             
             // Reserve space for the given number of nodes
             void reserve_nodes(size_t nodes);
@@ -183,6 +188,13 @@ namespace bv
             // Reset of children counters of a node, needed by insert() & co.
             void clear_children_counters(subtree_ref t,
                                          size_t begin, size_t end) const;
+            
+            // Limit to decide if a redistribution needs a split or not
+            size_t split_limit(subtree_ref t);
+            
+            // Entry point for the redistribution procedures
+            void redistribute(subtree_ref t,
+                              size_t begin, size_t end, size_t count);
             
             // Redistribution of bits in the leaves
             void redistribute_bits(subtree_ref t,
@@ -299,8 +311,8 @@ namespace bv
                 
                 // Size of the subtree
                 size_t s = k == 0        ? sizes(k) :
-                k == degree() ? size()   - sizes(k - 1) :
-                sizes(k) - sizes(k - 1);
+                           k == degree() ? size()   - sizes(k - 1) :
+                                           sizes(k) - sizes(k - 1);
                 
                 // Rank of the subtree
                 size_t r = k == 0        ? ranks(k) :
@@ -351,7 +363,7 @@ namespace bv
             find(size_t index) const
             {
                 size_t child, new_index;
-                std::tie(child, new_index) = find_insert_point(index);
+                tie(child, new_index) = find_insert_point(index);
                 
                 if(new_index == this->child(child).size()) {
                     child += 1;
@@ -591,6 +603,15 @@ namespace bv
         bt_impl<W, AP>::bt_impl(size_t N, size_t Wn)
         {
             capacity = N;
+            
+            // When all the maximum capacity fits in a leaf, we act consequently
+            if(small()) {
+                // We only need one leaf
+                leaves_count = 1;
+                alloc_leaf();
+                return;
+            }
+            
             node_width = Wn;
             
             // + 1 for the extra flag bit
@@ -625,8 +646,8 @@ namespace bv
             
             // For values of small capacity relatively to the leaves and nodes
             // bit size, the buffer could be greater than the maximum count.
-            leaves_count = std::max(leaves_count, leaves_buffer);
-            nodes_count = std::max(nodes_count, nodes_buffer);
+            leaves_count = max(leaves_count, leaves_buffer);
+            nodes_count = max(nodes_count, nodes_buffer);
             
             // Width of pointers
             pointer_width = size_t(ceil(log2(max(nodes_count, leaves_count))));
@@ -641,8 +662,10 @@ namespace bv
             }
             
             // Allocate space for the root node and its first leaf
-            alloc_node();
-            root().pointers(0) = alloc_leaf();
+            height = 1; // Initial height is 1
+            alloc_node(); // Initial root node
+            alloc_leaf(); // Sentinel leaf for position zero
+            root().pointers(0) = alloc_leaf(); // First leaf
         }
         
         /*
@@ -716,7 +739,7 @@ namespace bv
                 return t.leaf().get(index);
             else { // We're in a node
                 size_t child, new_index;
-                std::tie(child, new_index) = t.find(index);
+                tie(child, new_index) = t.find(index);
                 
                 return access(t.child(child), new_index);
             }
@@ -739,7 +762,7 @@ namespace bv
                 return t.leaf().popcount(0, index) + prevrank;
             else {
                 size_t child, new_index;
-                std::tie(child, new_index) = t.find_insert_point(index);
+                tie(child, new_index) = t.find_insert_point(index);
                 
                 size_t pr = child == 0 ? prevrank
                                        : prevrank + t.ranks(child - 1);
@@ -774,7 +797,7 @@ namespace bv
                 return b;
             } else {
                 size_t child, new_index;
-                std::tie(child, new_index) = t.find(index);
+                tie(child, new_index) = t.find(index);
                 
                 // FIXME: sistemare il contatore rank
                 bool b = set(t.child(child), new_index, bit);
@@ -802,6 +825,7 @@ namespace bv
         void bt_impl<W, AP>::insert(subtree_ref t, size_t index, bool bit)
         {
             assert(index <= t.size() && "Index out of bounds");
+            assert(size < capacity);
             
             // If we see a full node in this point it must be the root,
             // otherwise we've violated our invariants.
@@ -811,9 +835,12 @@ namespace bv
             // Then we go ahead pretending we started the insertion from the
             // new root, so we don't duplicate the node splitting code
             // below
+            // In small mode this should not happen, since this means that
+            // the whole bitvector is full and we can't insert anything at all.
             if(t.is_full())
             {
                 assert(t.is_root());
+                assert(!small());
                 
                 // Copy the old root into another node
                 subtree_ref old_root = t.copy();
@@ -834,87 +861,55 @@ namespace bv
                 return insert(root(), index, bit);
             }
             
-            // If we're here we assume the node is not full
-            assert(!t.is_full());
+            // Hereafter we assume the node is not full
             
-            // Find where we have to insert this bit
-            size_t child, new_index;
-            std::tie(child, new_index) = t.find_insert_point(index);
-            
-            // Then go ahead
-            if(t.height() == 1) // We'll reach a leaf
+            // If we're inserting into a leaf, it's very simple.
+            if(t.is_leaf())
             {
-                // 1. Check if we need a split and/or a redistribution of bits
-                if(t.child(child).is_full())
-                {
-                    // The leaf is full, we need a redistribution
-                    size_t begin, end, count;
-                    std::tie(begin, end, count) = find_adjacent_children(t, child);
-                    
-                    // Check if we need to split or only to redistribute
-                    if(count >= leaves_buffer * (leaf_bits - leaves_buffer))
-                        // We need to split. The node should not be full
-                        t.insert_child(end++);
-                    
-                    // redistribute
-                    redistribute_bits(t, begin, end, count);
-                    
-                    // It's important to stay in shape and not get too fat
-                    if(size >= (leaves_buffer * (leaf_bits - leaves_buffer))) {
-                        for(size_t k = begin; k < end; ++k) {
-                            size_t minsize = (leaves_buffer *
-                                              (leaf_bits - leaves_buffer)) /
-                            (leaves_buffer + 1);
-                            size_t childsize = t.child(k).size();
-                            assert(childsize >= minsize);
-                            // Silence unused warnings in release mode
-                            unused(minsize, childsize);
-                        }
-                    }
-                    
-                    // Search again where to insert the bit
-                    std::tie(child, new_index) = t.find_insert_point(index);
-                }
-                
-                // 2. Update counters
+                // 1 - Update the counters
                 size += 1;
                 rank += bit;
-                t.sizes(child, degree) += 1;
-                t.ranks(child, degree) += bit;
                 
-                // 3. Insert the bit
-                t.child(child).leaf().insert(new_index, bit);
+                // 2 - Insert the bit
+                return t.leaf().insert(index, bit);
             }
-            else // We'll have another node
+            
+            // Else, we are in an internal node
+
+            // 1 - Find where we have to insert this bit
+            size_t child, new_index;
+            tie(child, new_index) = t.find_insert_point(index);
+            
+            // 2 - Check if we need a split and/or a redistribution of bits
+            if(t.child(child).is_full())
             {
-                // 1. Check if we need a split and/or a redistribution of keys
-                if(t.child(child).is_full())
-                {
-                    // The node is full, we need a redistribution
-                    size_t begin, end, count;
-                    std::tie(begin, end, count) = find_adjacent_children(t, child);
-                    
-                    if(count / (nodes_buffer + 1) >= nodes_buffer)
-                        t.insert_child(end++); // We need to split.
-                    
-                    // redistribute
-                    redistribute_keys(t, begin, end, count);
-                    
-                    // Search again where to insert the bit
-                    std::tie(child, new_index) = t.find_insert_point(index);
-                }
+                // 2.1 - Find the range of children that will be the target
+                //       of the redistribution
+                size_t begin, end, count;
+                tie(begin, end, count) = find_adjacent_children(t, child);
                 
-                // Get the ref to the child into which we're going to recurse,
-                // Note that we need to get the ref before incrementing the
-                // counters in the parent, for consistency
-                subtree_ref next_child = t.child(child);
+                // 2.2 - Check if we need to split or only to redistribute
+                if(count >= split_limit(t))
+                    t.insert_child(end++);
                 
-                t.sizes(child, degree) += 1;
-                t.ranks(child, degree) += bit;
+                // 2.3 - Redistribute
+                redistribute(t, begin, end, count);
                 
-                // 3. Continue the traversal
-                insert(next_child, new_index, bit);
+                // 2.4 - Search again where to insert the bit
+                tie(child, new_index) = t.find_insert_point(index);
             }
+            
+            // 3 - Get the ref to the child into which we're going to recurse,
+            //     Note that we need to get the ref before incrementing the
+            //     counters in the parent, for consistency
+            subtree_ref child_ref = t.child(child);
+            
+            // 4 - Update counters
+            t.sizes(child, degree) += 1;
+            t.ranks(child, degree) += bit;
+            
+            // 5 - Insert recursively
+            return insert(child_ref, new_index, bit);
         }
         
         // Utility functions for insert()
@@ -941,7 +936,7 @@ namespace bv
             };
             
             size_t begin = child >= buffer ? child - buffer + 1 : 0;
-            size_t end = std::min(begin + buffer, degree + 1);
+            size_t end = min(begin + buffer, degree + 1);
             
             size_t freeslots = 0;
             size_t maxfreeslots = 0;
@@ -990,7 +985,7 @@ namespace bv
                                                      size_t begin,
                                                      size_t end) const
         {
-            size_t keys_end = std::min(end, degree);
+            size_t keys_end = min(end, degree);
             size_t last_size = end < degree ? t.sizes(end - 1) : size;
             size_t last_rank = end < degree ? t.ranks(end - 1) : rank;
             size_t prev_size = begin > 0 ? t.sizes(begin - 1) : 0;
@@ -1004,6 +999,24 @@ namespace bv
             
             t.sizes(keys_end, degree) -= last_size - prev_size;
             t.ranks(keys_end, degree) -= last_rank - prev_rank;
+        }
+        
+        template<size_t W, allocation_policy_t AP>
+        size_t bt_impl<W, AP>::split_limit(subtree_ref t)
+        {
+            return t.height() == 1 ? leaves_buffer * (leaf_bits - leaves_buffer)
+                                   : nodes_buffer * (nodes_buffer + 1) ;
+        }
+        
+        template<size_t W, allocation_policy_t AP>
+        void bt_impl<W, AP>::redistribute(subtree_ref t,
+                                          size_t begin, size_t end,
+                                          size_t count)
+        {
+            if(t.height() == 1)
+                redistribute_bits(t, begin, end, count);
+            else
+                redistribute_keys(t, begin, end, count);
         }
         
         // FIXME: rewrite using a temporary space of two words instead
@@ -1067,6 +1080,18 @@ namespace bv
             }
             
             assert(count == 0);
+            // This is debug code
+            // It's important to stay in shape and not get too fat
+            if(size >= (leaves_buffer * (leaf_bits - leaves_buffer))) {
+                for(size_t k = begin; k < end; ++k) {
+                    size_t minsize = (leaves_buffer *
+                                      (leaf_bits - leaves_buffer)) /
+                                     (leaves_buffer + 1);
+                    size_t childsize = t.child(k).size();
+                    assert(childsize >= minsize);
+                    unused(minsize, childsize);
+                }
+            }
         }
         
         // FIXME: rewrite using a temporary space of two words instead
@@ -1428,7 +1453,7 @@ namespace bv
                  _impl->pointer_width,
                  _impl->degree,
                  _impl->nodes_buffer,
-                 _impl->sizes.size() / _impl->degree,
+                 _impl->sizes.size() / std::max(_impl->degree, size_t(1)),
                  _impl->leaves.size()
         };
     }
@@ -1438,12 +1463,14 @@ namespace bv
     size_t bitvector_t<W, AP>::memory() const
     {
         assert(valid() && "Can't access an uninitialized vector");
+        constexpr size_t nodes_word_size =
+                              internal::bitsize<internal::bitview_value_type>();
+        
         size_t m = sizeof(internal::bt_impl<W, AP>) * 8;
-        m += _impl->sizes.size() * _impl->counter_width;
-        m += _impl->ranks.size() * _impl->counter_width;
-        m += _impl->pointers.size() * _impl->pointer_width;
-        m += _impl->leaves.size() *
-             sizeof(typename internal::bt_impl<W, AP>::leaf_t) * 8;
+        m += _impl->sizes.container().size() * nodes_word_size;
+        m += _impl->ranks.container().size() * nodes_word_size;
+        m += _impl->pointers.container().size() * nodes_word_size;
+        m += _impl->leaves.size() * internal::bt_impl<W, AP>::leaf_bits;
         
         return m;
     }
