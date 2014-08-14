@@ -34,10 +34,15 @@ void test_bitvector()
 {
     constexpr size_t W = 2048;
     constexpr allocation_policy_t AP = alloc_on_demand;
-    size_t N = 100000;
+    size_t N = 1000000;
     size_t Wn = 256;
     
-    bitvector_t<W, AP>::test(std::cout, N, Wn, false, false, false, false);
+    bitvector_t<W, AP>::test(std::cout, N, Wn,
+                             /*random      =*/true,
+                             /*testrank    =*/false,
+                             /*dumpinfo    =*/false,
+                             /*dumpnode    =*/false,
+                             /*dumpcontents=*/false);
 }
 
 void test_packed_view()

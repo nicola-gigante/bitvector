@@ -112,6 +112,7 @@ namespace bv
         info_t info() const;
         size_t memory() const;
         static void test(std::ostream &stream, size_t N, size_t Wn,
+                         bool random,
                          bool testrank, bool dumpinfo,
                          bool dumpnode, bool dumpcontents);
         template<size_t Z, allocation_policy_t AP>

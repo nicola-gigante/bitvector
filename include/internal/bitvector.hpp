@@ -453,8 +453,9 @@ namespace bv
                     
                     o << "Node at index:      " << t.index() << "\n"
                     << "Total size:         " << t.size() << "\n"
-                    << "Total rank:         " << t.rank() << "\n"
-                    << "Number of children: " << t.nchildren() << "\n";
+                    << "Total rank:         " << t.rank() << "\n";
+                    // FIXME: decomment this line
+                    //<< "Number of children: " << t.nchildren() << "\n";
                     
                     o << "Sizes: |" << std::setw(field_width + 1) << "|";
                     for(size_t i = t.degree() - 1; i > 0; --i)
@@ -604,8 +605,8 @@ namespace bv
             
             node_width = Wn;
             
-            // + 1 for the extra flag bit
-            counter_width = size_t(ceil(log2(capacity))) + 1;
+            // The + 1 at the end is for the extra flag bit
+            counter_width = size_t(floor(log2(capacity)) + 1) + 1;
             
             degree = node_width / counter_width;
             
@@ -1339,6 +1340,7 @@ namespace bv
      */
     template<size_t W, allocation_policy_t AP>
     void bitvector_t<W, AP>::test(std::ostream &stream, size_t N, size_t Wn,
+                                  bool random,
                                   bool testrank, bool dumpinfo, bool dumpnode,
                                   bool dumpcontents)
     {
@@ -1360,7 +1362,7 @@ namespace bv
         bool b = true;
         for(size_t i = 0; i < nbits; ++i) {
             std::uniform_int_distribution<size_t> dist(0, i);
-            indexes.emplace_back(dist(engine), b = !b);
+            indexes.emplace_back(random ? dist(engine) : i, b = !b);
         }
         
         auto t1 = high_resolution_clock::now();
