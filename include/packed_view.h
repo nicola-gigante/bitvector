@@ -132,10 +132,10 @@ namespace bv
             bitview<Container> _bits;
             
             // Number of bits per field
-            size_t _width;
+            size_t _width = 0;
             
             // Mask with a set bit at the beginning of each field
-            value_type _field_mask;
+            value_type _field_mask = 0;
         };
         
         template<template<typename ...> class Container>

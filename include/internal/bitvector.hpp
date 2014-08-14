@@ -453,9 +453,8 @@ namespace bv
                     
                     o << "Node at index:      " << t.index() << "\n"
                     << "Total size:         " << t.size() << "\n"
-                    << "Total rank:         " << t.rank() << "\n";
-                    // FIXME: decomment this line
-                    //<< "Number of children: " << t.nchildren() << "\n";
+                    << "Total rank:         " << t.rank() << "\n"
+                    << "Number of children: " << t.nchildren() << "\n";
                     
                     o << "Sizes: |" << std::setw(field_width + 1) << "|";
                     for(size_t i = t.degree() - 1; i > 0; --i)
