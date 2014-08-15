@@ -225,11 +225,11 @@ namespace bv
             
             using range_reference =
             conditional_t<Const, typename packed_data::const_range_reference,
-            typename packed_data::range_reference>;
+                                 typename packed_data::range_reference>;
             
             using item_reference =
             conditional_t<Const, typename packed_data::const_item_reference,
-            typename packed_data::item_reference>;
+                                 typename packed_data::item_reference>;
             
             // Reference to the parent bitvector structure
             bt_impl_t &_vector;
@@ -249,8 +249,8 @@ namespace bv
         public:
             subtree_ref_base(bt_impl_t &vector, size_t index, size_t height,
                              size_t size, size_t rank)
-            : _vector(vector), _index(index), _height(height),
-            _size(size), _rank(rank) { }
+                : _vector(vector), _index(index), _height(height),
+                  _size(size), _rank(rank) { }
             
             subtree_ref_base(subtree_ref_base const&) = default;
             subtree_ref_base &operator=(subtree_ref_base const&) = default;
@@ -452,9 +452,9 @@ namespace bv
                                       + 4;
                     
                     o << "Node at index:      " << t.index() << "\n"
-                    << "Total size:         " << t.size() << "\n"
-                    << "Total rank:         " << t.rank() << "\n"
-                    << "Number of children: " << t.nchildren() << "\n";
+                      << "Total size:         " << t.size() << "\n"
+                      << "Total rank:         " << t.rank() << "\n"
+                      << "Number of children: " << t.nchildren() << "\n";
                     
                     o << "Sizes: |" << std::setw(field_width + 1) << "|";
                     for(size_t i = t.degree() - 1; i > 0; --i)
@@ -479,10 +479,10 @@ namespace bv
                                 o << "[x]: null\n";
                             else
                                 o << "#" << i
-                                << ", [" << t.child(i).index()
-                                << "], s = " << t.child(i).size()
-                                << ", r = " << ssize_t(t.child(i).rank()) << ": "
-                                << to_binary(t.child(i).leaf(), 8, '|') << "\n";
+                                  << ", [" << t.child(i).index()
+                                  << "], s = " << t.child(i).size()
+                                  << ", r = " << ssize_t(t.child(i).rank()) << ": "
+                                  << to_binary(t.child(i).leaf(), 8, '|') << "\n";
                         }
                     }
                 }
@@ -501,7 +501,7 @@ namespace bv
          */
         template<size_t W, allocation_policy_t AP>
         class bt_impl<W, AP>::subtree_ref
-        : public bt_impl<W, AP>::template subtree_ref_base<false>
+            : public bt_impl<W, AP>::template subtree_ref_base<false>
         {
             using Base = subtree_ref_base<false>;
             
@@ -523,10 +523,11 @@ namespace bv
         public:
             subtree_ref(bt_impl_t &vector_, size_t index_, size_t height_,
                         size_t size_, size_t rank_)
-            : Base(vector_, index_, height_, size_, rank_) { }
+                : Base(vector_, index_, height_, size_, rank_) { }
             
             subtree_ref(subtree_ref_base<false> const&r)
-            : Base(r.vector(), r.index(), r.height(), r.size(), r.rank()) { }
+                : Base(r.vector(), r.index(), r.height(),
+                       r.size(), r.rank()) { }
             
             operator subtree_const_ref() const {
                 return { _vector, _index, _height, _size, _rank };
@@ -785,7 +786,6 @@ namespace bv
                 size_t child, new_index;
                 tie(child, new_index) = t.find(index);
                 
-                // FIXME: sistemare il contatore rank
                 bool b = set(t.child(child), new_index, bit);
                 if(b && !bit)
                     t.ranks(child, degree()) -= 1;
@@ -971,10 +971,10 @@ namespace bv
                                                      size_t end) const
         {
             size_t keys_end = min(end, degree);
-            size_t last_size = end < degree ? t.sizes(end - 1) : size;
-            size_t last_rank = end < degree ? t.ranks(end - 1) : rank;
-            size_t prev_size = begin > 0 ? t.sizes(begin - 1) : 0;
-            size_t prev_rank = begin > 0 ? t.ranks(begin - 1) : 0;
+            size_t last_size = end < degree ? t.sizes(end - 1)   : size;
+            size_t last_rank = end < degree ? t.ranks(end - 1)   : rank;
+            size_t prev_size = begin > 0    ? t.sizes(begin - 1) : 0;
+            size_t prev_rank = begin > 0    ? t.ranks(begin - 1) : 0;
             
             assert(last_size >= prev_size);
             assert(last_rank >= prev_rank);
@@ -1293,7 +1293,7 @@ namespace bv
         size_t _index;
         
         const_reference(bitvector_t const&v, size_t index)
-        : _v(v), _index(index) { }
+            : _v(v), _index(index) { }
     public:
         const_reference(const_reference const&) = default;
         
@@ -1311,7 +1311,7 @@ namespace bv
         size_t _index;
         
         reference(bitvector_t &v, size_t index)
-        : _v(v), _index(index) { }
+            : _v(v), _index(index) { }
     public:
         reference(reference const&) = default;
         

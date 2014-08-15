@@ -48,7 +48,7 @@ namespace bv
             
             packed_view(size_t width, size_t size)
                 : _bits(width * size), _width(width),
-            _field_mask(compute_field_mask(width)) { }
+                  _field_mask(compute_field_mask(width)) { }
             
             packed_view(packed_view const&) = default;
             packed_view(packed_view &&) = default;
@@ -63,8 +63,7 @@ namespace bv
             
             // The number of fields contained in the packed_view
             size_t size() const {
-                return _bits.size() ? _bits.size() / _width
-                                    : 0;
+                return _bits.size() ? _bits.size() / _width : 0;
             }
             
             // The number of bits for each field
@@ -140,7 +139,7 @@ namespace bv
         
         template<template<typename ...> class Container>
         auto packed_view<Container>::compute_field_mask(size_t width)
-        -> value_type
+            -> value_type
         {
             size_t fields_per_word = W / width;
             value_type mask = 0;
@@ -248,7 +247,7 @@ namespace bv
             using pv_t = add_const_if_t<IsConst, packed_view>;
             
             range_reference_base(pv_t &v, size_t begin, size_t end)
-            : _v(v), _begin(begin), _end(end) { }
+                : _v(v), _begin(begin), _end(end) { }
             
         public:
             range_reference_base(range_reference_base const&) = default;
@@ -286,7 +285,7 @@ namespace bv
         
         template<template<typename ...> class Container>
         class packed_view<Container>::range_reference
-        : public range_reference_base<false>
+            : public range_reference_base<false>
         {
             friend class packed_view;
             
@@ -296,7 +295,7 @@ namespace bv
             using Base::_end;
             
             range_reference(packed_view &v, size_t begin, size_t end)
-            : Base(v, begin, end) { }
+                : Base(v, begin, end) { }
             
         public:
             range_reference(range_reference const&) = default;
@@ -354,7 +353,7 @@ namespace bv
             friend class packed_view;
             
             const_item_reference(packed_view const&v, size_t index)
-            : _v(v), _index(index) { }
+                : _v(v), _index(index) { }
             
         public:
             const_item_reference(const_item_reference const&) = default;
@@ -379,7 +378,7 @@ namespace bv
             friend class packed_view;
             
             item_reference(packed_view &v, size_t index)
-            : _v(v), _index(index) { }
+                : _v(v), _index(index) { }
             
         public:
             item_reference(item_reference const&) = default;
