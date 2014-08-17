@@ -18,6 +18,7 @@
 #define BITVECTOR_BITVIEW_H
 
 #include "internal/bits.h"
+#include "internal/view_reference.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -28,27 +29,34 @@
 #include <tuple>
 #include <algorithm>
 
-// FIXME: remove this header when finished debugging
-#include <iostream>
-
 namespace bv
 {
     namespace internal {
-        using bitview_value_type = uint64_t;
+        class bitview_base {
+        public:
+            using word_type = uint64_t;
+        };
         
         template<template<typename ...> class Container>
-        class bitview
+        class bitview : public bitview_base
         {
         public:
-            using value_type = bitview_value_type;
-            using container_type = Container<value_type>;
+            using bitview_base::word_type;
+            using value_type = bool;
+
+            static constexpr size_t W = bitsize<word_type>();
             
-            static constexpr size_t W = bitsize<value_type>();
+            using range_reference       = range_reference<bitview>;
+            using const_range_reference = const_range_reference<bitview>;
+            using bit_reference         = item_reference<bitview>;
+            using const_bit_reference   = const_item_reference<bitview>;
+            
+            using container_type = Container<word_type>;
             
             bitview() = default;
             
             template<typename Size = size_t,
-            REQUIRES(std::is_constructible<container_type, Size>::value)>
+                     REQUIRES(std::is_constructible<container_type, Size>::value)>
             bitview(size_t size)
                 : _container(required_container_size(size)) { }
             
@@ -71,16 +79,25 @@ namespace bv
                 return _container.resize(required_container_size(size));
             }
             
-            value_type get(size_t begin, size_t end) const;
-            bool get(size_t index) const;
-            
             size_t popcount(size_t begin, size_t end) const;
             size_t popcount() const;
             
-            void set(size_t begin, size_t end, value_type value);
-            void set(size_t index, bool bit);
-            
             void clear();
+            
+            void insert(size_t begin, size_t end, word_type value);
+            void insert(size_t index, bool bit);
+            
+            /*
+             * Interface to the reference wrapper.
+             * It is recommended to use the high-level interface instead
+             */
+            size_t elements_per_word() const { return W; }
+            
+            word_type get(size_t begin, size_t end) const;
+            void set(size_t begin, size_t end, word_type value);
+            
+            bool get(size_t index) const;
+            void set(size_t index, bool bit);
             
             void copy(bitview const&src,
                       size_t src_begin, size_t src_end,
@@ -91,11 +108,29 @@ namespace bv
                       size_t src_begin, size_t src_end,
                       size_t dest_begin, size_t dest_end);
             
-            void insert(size_t begin, size_t end, value_type value);
-            void insert(size_t index, bool bit);
-            
             std::string to_binary(size_t begin, size_t end,
                                   size_t sep, char ssep) const;
+            
+            /*
+             * High-level access interface to the view's contents
+             */
+            range_reference operator()(size_t begin, size_t end) {
+                return { *this, begin, end };
+            }
+            
+            const_range_reference operator()(size_t begin, size_t end) const {
+                return { *this, begin, end };
+            }
+            
+            bit_reference operator[](size_t index) {
+                assert(index < size());
+                return { *this, index };
+            }
+            
+            const_bit_reference operator[](size_t index) const {
+                assert(index < size());
+                return { *this, index };
+            }
             
         private:
             static size_t required_container_size(size_t size) {
@@ -127,7 +162,7 @@ namespace bv
         template<size_t Bits>
         struct bitarray_t {
             template<typename T>
-            using array = std::array<T, Bits / bitsize<bitview_value_type>()>;
+            using array = std::array<T, Bits / bitsize<bitview_base::word_type>()>;
         };
         
         template<size_t Bits>
@@ -143,7 +178,8 @@ namespace bv
          * Class implementation
          */
         template<template<typename ...> class C>
-        auto bitview<C>::locate(size_t begin, size_t end) const -> range_location_t
+        typename bitview<C>::range_location_t
+        bitview<C>::locate(size_t begin, size_t end) const
         {
             size_t index  = begin / W;
             size_t lbegin = begin % W;
@@ -156,8 +192,8 @@ namespace bv
         }
         
         template<template<typename ...> class Container>
-        auto bitview<Container>::get(size_t begin, size_t end) const
-        -> value_type
+        bitview_base::word_type
+        bitview<Container>::get(size_t begin, size_t end) const
         {
             if(is_empty_range(begin, end))
                 return 0;
@@ -166,10 +202,10 @@ namespace bv
             
             range_location_t loc = locate(begin, end);
             
-            value_type low = bitfield(_container[loc.index],
+            word_type low = bitfield(_container[loc.index],
                                       loc.lbegin, loc.lbegin + loc.llen);
             
-            value_type high = 0;
+            word_type high = 0;
             if(loc.hlen != 0)
                 high = lowbits(_container[loc.index + 1], loc.hlen) << loc.llen;
                 
@@ -180,7 +216,7 @@ namespace bv
         bool bitview<Container>::get(size_t index) const {
             assert(index < size());
             
-            return (_container[index / W] & (value_type(1) << (index % W))) != 0;
+            return (_container[index / W] & (word_type(1) << (index % W))) != 0;
         }
         
         template<template<typename ...> class Container>
@@ -213,7 +249,7 @@ namespace bv
         }
         
         template<template<typename ...> class Container>
-        void bitview<Container>::set(size_t begin, size_t end, value_type value)
+        void bitview<Container>::set(size_t begin, size_t end, word_type value)
         {
             if(is_empty_range(begin, end))
                 return;
@@ -230,7 +266,7 @@ namespace bv
                          loc.lbegin, loc.lbegin + loc.llen, value);
             
             if(loc.hlen != 0) {
-                value_type bits = bitfield(value, loc.llen, loc.llen + loc.hlen);
+                word_type bits = bitfield(value, loc.llen, loc.llen + loc.hlen);
                 set_bitfield(_container[loc.index + 1], 0, loc.hlen, bits);
             }
         }
@@ -238,8 +274,8 @@ namespace bv
         template<template<typename ...> class Container>
         void bitview<Container>::set(size_t index, bool bit)
         {
-            const value_type mask    = ~(value_type(1) << (index % W));
-            const value_type bitmask = value_type(bit) << (index % W);
+            const word_type mask    = ~(word_type(1) << (index % W));
+            const word_type bitmask = word_type(bit) << (index % W);
             
             _container[index / W] = (_container[index / W] & mask) | bitmask;
         }
@@ -322,7 +358,7 @@ namespace bv
         
         template<template<typename ...> class Container>
         void bitview<Container>::insert(size_t begin, size_t end,
-                                        value_type value)
+                                        word_type value)
         {
             if(is_empty_range(begin, end))
                 return;

@@ -67,10 +67,6 @@ void test_packed_view()
     v[4] = 50;
     v[5] = 60;
     
-    assert(v(0,6).find(5) == 0);
-    assert(v(0,6).find(25) == 2);
-    assert(v(0,6).find(65) == 6);
-    
     v(0, 3) += 10;
     assert(v[0] == 20);
     assert(v[1] == 30);

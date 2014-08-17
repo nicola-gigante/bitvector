@@ -66,7 +66,7 @@ namespace bv
                                                  std::vector<T>>;
             
             using packed_data = packed_view<data_container>;
-            using field_type = typename packed_data::value_type;
+            using field_type = typename packed_data::word_type;
             
             static constexpr size_t leaf_bits = W;
             using leaf_t = bitarray<leaf_bits>;
@@ -334,18 +334,42 @@ namespace bv
             // The returned pair contains:
             //  - The index of the subtree
             //  - The new index, relative to the subtree, where to insert the bit
+            //
+            // For the bit tricks used in this step see the paper
             std::pair<size_t, size_t>
             find_insert_point(size_t index) const
             {
                 assert(is_node());
                 
-                size_t child = sizes().find(index);
+                using word_type = typename packed_data::word_type;
+                
+                size_t len = degree();
+                const word_type field_mask   = _vector.sizes.field_mask();
+                const word_type flag_mask    = _vector.sizes.flag_mask();
+                const size_t width           = _vector.counter_width;
+                const size_t fields_per_word = _vector.sizes.elements_per_word();
+                const size_t rem             = len % fields_per_word;
+                
+                ensure_bitsize(index, width - 1);
+                
+                size_t child = len;
+                for(size_t step, p = 0; p < degree(); len -= step, p += step)
+                {
+                    step = len < fields_per_word ? rem : fields_per_word;
+                    
+                    word_type word = word_type(sizes(p, p + step)) |
+                                     flag_mask;
+                    
+                    child -= popcount(lowbits(flag_mask &
+                                              (word - index * field_mask),
+                                              step * width));
+                }
+                
+                assert(len == 0);
                 
                 size_t new_index = index;
                 if(child > 0)
                     new_index -= sizes(child - 1);
-                
-                //assert(new_index < this->child(child).size());
                 
                 return { child, new_index };
             }
@@ -723,7 +747,7 @@ namespace bv
             assert(index < t.size() && "Index out of bounds");
             
             if(t.is_leaf()) // We have a leaf
-                return t.leaf().get(index);
+                return t.leaf()[index];
             else { // We're in a node
                 size_t child, new_index;
                 tie(child, new_index) = t.find(index);
@@ -772,14 +796,14 @@ namespace bv
                 // We have a leaf
                 // We need to read the previous value to know if we have to
                 // update the ranks
-                bool b = t.leaf().get(index);
+                bool b = t.leaf()[index];
                 if(b != bit) {
                     if(b && !bit)
                         rank -= 1;
                     if(!b && bit)
                         rank += 1;
                     
-                    t.leaf().set(index, bit);
+                    t.leaf()[index] = bit;
                 }
                 return b;
             } else {
@@ -1026,7 +1050,7 @@ namespace bv
                 if(t.pointers(i) != 0) {
                     size_t step = t.child(i).size();
                     leaf_reference leaf = t.child(i).leaf();
-                    bits.copy(leaf, 0, leaf.size(), p, p + step);
+                    bits(p, p + step) = leaf(0, leaf.size());
                     p += step;
                 }
             }
@@ -1053,7 +1077,7 @@ namespace bv
                 // Take the bits out of the buffer, put them back into the leaf
                 leaf_reference leaf = t.child(i).leaf();
                 leaf.clear();
-                leaf.copy(bits, p, p + n, 0, leaf.size());
+                leaf(0, leaf.size()) = bits(p, p + n);
                 
                 // Increment the counters
                 t.sizes(i, degree) += n;
@@ -1450,7 +1474,7 @@ namespace bv
     {
         assert(valid() && "Can't access an uninitialized vector");
         constexpr size_t nodes_word_size =
-                              internal::bitsize<internal::bitview_value_type>();
+                         internal::bitsize<internal::bitview_base::word_type>();
         
         size_t m = sizeof(internal::bt_impl<W, AP>) * 8;
         m += _impl->sizes.container().size() * nodes_word_size;

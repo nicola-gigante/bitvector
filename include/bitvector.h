@@ -47,7 +47,7 @@ namespace bv
     template<size_t W, allocation_policy_t AllocPolicy = alloc_on_demand>
     class bitvector_t
     {
-        static_assert(W % internal::bitsize<internal::bitview_value_type>() == 0,
+        static_assert(W % internal::bitsize<internal::bitview_base::word_type>() == 0,
                       "You must choose a number of bits that is multiple "
                       "of the word size");
     public:
