@@ -1431,12 +1431,12 @@ namespace bv
             size_t r1 = v.rank(ranki);
             size_t r2 = v.rank(nbits);
             if(r1 != rank)
-                std::cout << "FAIL: rank should be " << rank << ",\n"
-                          << "               found " << r1 << "\n";
+                stream << "FAIL: rank should be " << rank << ",\n"
+                       << "               found " << r1 << "\n";
             
             if(r2 != totalrank)
-                std::cout << "FAIL: total rank should be " << totalrank << ",\n"
-                          << "                     found " << r2 << "\n";
+                stream << "FAIL: total rank should be " << totalrank << ",\n"
+                       << "                     found " << r2 << "\n";
         }
         
         if(dumpcontents)
