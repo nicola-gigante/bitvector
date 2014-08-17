@@ -35,10 +35,10 @@ namespace bv
             using word_type  = typename bitview<Container>::word_type;
             using value_type = word_type;
             
-            using range_reference       = range_reference<packed_view>;
-            using const_range_reference = const_range_reference<packed_view>;
-            using item_reference        = item_reference<packed_view>;
-            using const_item_reference  = const_item_reference<packed_view>;
+            using range_reference       = internal::range_reference<packed_view>;
+            using const_range_reference = internal::const_range_reference<packed_view>;
+            using item_reference        = internal::item_reference<packed_view>;
+            using const_item_reference  = internal::const_item_reference<packed_view>;
             
             using container_type = typename bitview<Container>::container_type;
             

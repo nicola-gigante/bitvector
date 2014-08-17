@@ -46,10 +46,10 @@ namespace bv
 
             static constexpr size_t W = bitsize<word_type>();
             
-            using range_reference       = range_reference<bitview>;
-            using const_range_reference = const_range_reference<bitview>;
-            using bit_reference         = item_reference<bitview>;
-            using const_bit_reference   = const_item_reference<bitview>;
+            using range_reference       = internal::range_reference<bitview>;
+            using const_range_reference = internal::const_range_reference<bitview>;
+            using bit_reference         = internal::item_reference<bitview>;
+            using const_bit_reference   = internal::const_item_reference<bitview>;
             
             using container_type = Container<word_type>;
             
