@@ -71,6 +71,9 @@ namespace bv
             // Number of bits handled by the view
             size_t size() const { return _container.size() * W; }
             
+            // A default-initialized bitview is empty
+            bool empty() const { return size() == 0; }
+            
             // Change the size of the view, possibly changing the size of the
             // underlying container as well
             template<typename C = container_type,

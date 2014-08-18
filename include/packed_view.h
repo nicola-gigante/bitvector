@@ -45,7 +45,7 @@ namespace bv
             packed_view() = default;
             
             packed_view(size_t width, size_t size)
-                : _bits(width * size), _width(width),
+                : _bits(width * size), _size(size), _width(width),
                   _field_mask(compute_field_mask(width)) { }
             
             packed_view(packed_view const&) = default;
@@ -59,9 +59,17 @@ namespace bv
             bitview<Container> const&bits() const { return _bits; }
             bitview<Container>      &bits()       { return _bits; }
             
-            // The number of fields contained in the packed_view
+            // A default initialized packed_view is empty
+            bool empty() const { return _bits.empty() || _width == 0; }
+            
+            // The number of fields presented by the packed_view
             size_t size() const {
-                return _bits.size() ? _bits.size() / _width : 0;
+                return _size;
+            }
+            
+            // The number of fields that can fit in the underlying bitview
+            size_t capacity() const {
+                return empty() ? 0 : _bits.size() / _width;
             }
             
             // The number of bits for each field
@@ -75,6 +83,7 @@ namespace bv
              * underlying container as well
              */
             void resize(size_t size) {
+                _size = size;
                 _bits.resize(_width * size);
             }
             
@@ -84,6 +93,8 @@ namespace bv
              *          practice the data doesn't get touched
              */
             void reset(size_t width, size_t size) {
+                assert(size == 0 || width != 0);
+                
                 if(width != _width) {
                     _width = width;
                     _field_mask = compute_field_mask(width);
@@ -153,6 +164,9 @@ namespace bv
         private:
             // Actual data
             bitview<Container> _bits;
+            
+            // Number of requested fields
+            size_t _size = 0;
             
             // Number of bits per field
             size_t _width = 0;

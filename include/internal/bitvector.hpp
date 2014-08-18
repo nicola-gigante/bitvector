@@ -91,15 +91,6 @@ namespace bv
             // Number of bits used for a node
             size_t node_width = 0;
             
-            // Current number of bits stored in the bitvector
-            size_t size = 0;
-            
-            // Total rank of the bitvector
-            size_t rank = 0;
-            
-            // Height of the tree (distance of the root node from the leaves)
-            size_t height = 0;
-            
             // Bit width of the nodes' counters inside nodes' words
             size_t counter_width = 0;
             
@@ -118,6 +109,15 @@ namespace bv
             
             // Number of internal nodes needed in the worst-case
             size_t nodes_count = 0;
+            
+            // Current number of bits stored in the bitvector
+            size_t size = 0;
+            
+            // Total rank of the bitvector
+            size_t rank = 0;
+            
+            // Height of the tree (distance of the root node from the leaves)
+            size_t height = 0;
             
             // Index of the first unused node in the nodes arrays
             size_t free_node = 0;
