@@ -57,7 +57,7 @@ namespace bv
             container_type      &container()       { return _bits.container(); }
             
             bitview<Container> const&bits() const { return _bits; }
-            bitview<Container>       bits()       { return _bits; }
+            bitview<Container>      &bits()       { return _bits; }
             
             // The number of fields contained in the packed_view
             size_t size() const {
