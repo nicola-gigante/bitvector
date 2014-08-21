@@ -137,7 +137,7 @@ namespace bv
             
         private:
             static size_t required_container_size(size_t size) {
-                return size_t(std::ceil(double(size) / W));
+                return ceildiv(size, W);
             }
             
             struct range_location_t {

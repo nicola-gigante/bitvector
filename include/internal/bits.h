@@ -70,6 +70,11 @@ namespace bv
             return true;
         }
         
+        // Returns ceil(a / b) without casting to floating point
+        constexpr size_t ceildiv(size_t a, size_t b) {
+            return a / b + (a % b != 0);
+        }
+        
         // Returns the bit size of the given type
         template<typename T, REQUIRES(std::is_integral<T>::value)>
         constexpr size_t bitsize() {

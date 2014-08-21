@@ -651,7 +651,7 @@ namespace bv
             size_t level_count = leaves_count;
             do
             {
-                level_count = size_t(ceil(double(level_count) / minimum_degree));
+                level_count = ceildiv(level_count, minimum_degree);
                 nodes_count += level_count;
             } while(level_count > 1);
             
