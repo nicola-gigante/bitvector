@@ -29,6 +29,8 @@
 #include <tuple>
 #include <algorithm>
 
+#include <iostream>
+
 namespace bv
 {
     namespace internal {
@@ -141,7 +143,8 @@ namespace bv
             }
             
             struct range_location_t {
-                size_t index;
+                size_t lindex;
+                size_t hindex;
                 size_t lbegin;
                 size_t llen;
                 size_t hlen;
@@ -184,35 +187,33 @@ namespace bv
         typename bitview<C>::range_location_t
         bitview<C>::locate(size_t begin, size_t end) const
         {
-            size_t index  = begin / W;
+            size_t lindex = begin / W;
+            size_t hindex = end / W;
             size_t lbegin = begin % W;
+            size_t hend   = end % W;
             
-            size_t len = end - begin;
-            size_t llen = std::min(W - lbegin, len);
-            size_t hlen = len - llen;
+            size_t len = (end - begin) * size_t(begin <= end);
+            size_t hlen = hend * (hindex > lindex);
+            size_t llen = len - hlen;
             
-            return { index, lbegin, llen, hlen };
+            return { lindex, hindex, lbegin, llen, hlen };
         }
         
         template<template<typename ...> class Container>
         bitview_base::word_type
         bitview<Container>::get(size_t begin, size_t end) const
         {
-            if(is_empty_range(begin, end))
-                return 0;
-            
             check_valid_range(begin, end, size());
-            
+
             range_location_t loc = locate(begin, end);
             
-            word_type low = bitfield(_container[loc.index],
-                                      loc.lbegin, loc.lbegin + loc.llen);
-            
-            word_type high = 0;
-            if(loc.hlen != 0)
-                high = lowbits(_container[loc.index + 1], loc.hlen) << loc.llen;
+            word_type low = lowbits(_container[loc.lindex] >> loc.lbegin, 
+                                    loc.llen);
+
+            word_type high = shiftl(lowbits(_container[loc.hindex], loc.hlen), 
+                                    loc.llen);
                 
-                return high | low;
+            return high | low;
         }
         
         template<template<typename ...> class Container>
@@ -265,12 +266,12 @@ namespace bv
             
             range_location_t loc = locate(begin, end);
             
-            set_bitfield(_container[loc.index],
+            set_bitfield(_container[loc.lindex],
                          loc.lbegin, loc.lbegin + loc.llen, value);
             
             if(loc.hlen != 0) {
                 word_type bits = bitfield(value, loc.llen, loc.llen + loc.hlen);
-                set_bitfield(_container[loc.index + 1], 0, loc.hlen, bits);
+                set_bitfield(_container[loc.lindex + 1], 0, loc.hlen, bits);
             }
         }
         
@@ -375,7 +376,25 @@ namespace bv
         template<template<typename ...> class Container>
         void bitview<Container>::insert(size_t index, bool bit)
         {
-            insert(index, index + 1, bit);
+            size_t i = index / W;
+            size_t pos = index % W;
+
+            word_type word = _container[i];
+            word_type mask = word_type(-1) << pos;
+
+            word_type carry = word >> (W - 1);
+            _container[i] = ((word &  mask) << 1)    | 
+                             (word & ~mask)          | 
+                             (word_type(bit) << pos);
+
+            for(size_t j = i + 1; j < _container.size(); ++j) 
+            {
+                word = _container[j];
+                word_type newcarry = word >> (W - 1);
+                
+                _container[j] = word << 1 | carry;
+                carry = newcarry;
+            }
         }
         
         template<template<typename ...> class Container>
