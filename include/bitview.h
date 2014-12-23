@@ -199,6 +199,37 @@ namespace bv
             return { lindex, hindex, lbegin, llen, hlen };
         }
         
+#ifdef __GNUC__
+        
+        template<template<typename ...> class Container>
+        bitview_base::word_type
+        bitview<Container>::get(size_t begin, size_t end) const
+        {
+            size_t begin_index = begin / W;
+            size_t begin_pos = begin % W;
+            size_t end_index = end / W;
+            size_t len = end - begin;
+            size_t end_pos = begin_pos + len;
+            
+            assert(begin_index < _container.size());
+            assert(end_index < _container.size());
+            
+            union {
+                __uint128_t value;
+                uint64_t words[2];
+            } data;
+            
+            data.words[0] = _container[begin_index];
+            data.words[1] = _container[end_index];
+            
+            data.value >>= begin_pos;
+            data.value &= (~ __uint128_t(0)) >> (128 - end_pos);
+            
+            return data.words[0];
+        }
+        
+#else
+        
         template<template<typename ...> class Container>
         bitview_base::word_type
         bitview<Container>::get(size_t begin, size_t end) const
@@ -215,6 +246,8 @@ namespace bv
                 
             return high | low;
         }
+
+#endif
         
         template<template<typename ...> class Container>
         bool bitview<Container>::get(size_t index) const {
