@@ -64,7 +64,8 @@ namespace bv
         // the bounds used to represent it
         inline bool check_valid_range(size_t begin, size_t end, size_t bound)
         {
-            assert(begin < bound && end <= bound);
+            assert(is_empty_range(begin, end) ||
+                   (begin < bound && end <= bound));
             unused(begin, end, bound);
             return true;
         }
@@ -115,30 +116,6 @@ namespace bv
         }
         
         /*
-         * shiftr and shiftl are right and left shifts that can handle
-         * n >= bitsize
-         */
-        template<typename T, REQUIRES(std::is_integral<T>::value)>
-        T shiftr(T val, size_t n) 
-        {
-            assert(n <= bitsize<T>());
-            
-            T good = (n < bitsize<T>());
-
-            return good * (val >> (n * good));
-        }
-
-        template<typename T, REQUIRES(std::is_integral<T>::value)>
-        T shiftl(T val, size_t n) 
-        {
-            assert(n <= bitsize<T>());
-            
-            T good = (n < bitsize<T>());
-
-            return good * (val << (n * good));
-        }
-
-        /*
          * Returns the lower n bits in the word
          */
         template<typename T, REQUIRES(std::is_integral<T>::value)>
@@ -146,9 +123,7 @@ namespace bv
         {
             assert(n <= bitsize<T>());
             
-            T mask = shiftr(T(-1), bitsize<T>() - n);
-
-            return val & mask;
+            return val & mask<T>(0, n);
         }
         
         /*
@@ -157,12 +132,12 @@ namespace bv
          */
         template<typename T, REQUIRES(std::is_integral<T>::value)>
         T highbits(T val, size_t n)
-        {            
-            assert(n <= bitsize<T>());
+        {
+            constexpr size_t W = bitsize<T>();
             
-            T mask = shiftl(T(-1), bitsize<T>() - n);
-
-            return val & mask;
+            assert(n <= W);
+            
+            return val & mask<T>(W - n, W);
         }
         
         /*

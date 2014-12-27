@@ -29,8 +29,6 @@
 #include <tuple>
 #include <algorithm>
 
-#include <iostream>
-
 namespace bv
 {
     namespace internal {
@@ -143,8 +141,7 @@ namespace bv
             }
             
             struct range_location_t {
-                size_t lindex;
-                size_t hindex;
+                size_t index;
                 size_t lbegin;
                 size_t llen;
                 size_t hlen;
@@ -187,67 +184,36 @@ namespace bv
         typename bitview<C>::range_location_t
         bitview<C>::locate(size_t begin, size_t end) const
         {
-            size_t lindex = begin / W;
-            size_t hindex = end / W;
+            size_t index  = begin / W;
             size_t lbegin = begin % W;
-            size_t hend   = end % W;
             
-            size_t len = (end - begin) * size_t(begin <= end);
-            size_t hlen = hend * (hindex > lindex);
-            size_t llen = len - hlen;
-            
-            return { lindex, hindex, lbegin, llen, hlen };
-        }
-        
-#ifdef __GNUC__
-        
-        template<template<typename ...> class Container>
-        bitview_base::word_type
-        bitview<Container>::get(size_t begin, size_t end) const
-        {
-            size_t begin_index = begin / W;
-            size_t begin_pos = begin % W;
-            size_t end_index = end / W;
             size_t len = end - begin;
-            size_t end_pos = begin_pos + len;
+            size_t llen = std::min(W - lbegin, len);
+            size_t hlen = len - llen;
             
-            assert(begin_index < _container.size());
-            assert(end_index < _container.size());
-            
-            union {
-                __uint128_t value;
-                uint64_t words[2];
-            } data;
-            
-            data.words[0] = _container[begin_index];
-            data.words[1] = _container[end_index];
-            
-            data.value >>= begin_pos;
-            data.value &= (~ __uint128_t(0)) >> (128 - end_pos);
-            
-            return data.words[0];
+            return { index, lbegin, llen, hlen };
         }
-        
-#else
         
         template<template<typename ...> class Container>
         bitview_base::word_type
         bitview<Container>::get(size_t begin, size_t end) const
         {
+            if(is_empty_range(begin, end))
+                return 0;
+            
             check_valid_range(begin, end, size());
-
+            
             range_location_t loc = locate(begin, end);
             
-            word_type low = lowbits(_container[loc.lindex] >> loc.lbegin, 
-                                    loc.llen);
-
-            word_type high = shiftl(lowbits(_container[loc.hindex], loc.hlen), 
-                                    loc.llen);
+            word_type low = bitfield(_container[loc.index],
+                                     loc.lbegin, loc.lbegin + loc.llen);
+            
+            word_type high = 0;
+            if(loc.hlen != 0)
+                high = lowbits(_container[loc.index + 1], loc.hlen) << loc.llen;
                 
             return high | low;
         }
-
-#endif
         
         template<template<typename ...> class Container>
         bool bitview<Container>::get(size_t index) const {
@@ -299,12 +265,12 @@ namespace bv
             
             range_location_t loc = locate(begin, end);
             
-            set_bitfield(_container[loc.lindex],
+            set_bitfield(_container[loc.index],
                          loc.lbegin, loc.lbegin + loc.llen, value);
             
             if(loc.hlen != 0) {
                 word_type bits = bitfield(value, loc.llen, loc.llen + loc.hlen);
-                set_bitfield(_container[loc.lindex + 1], 0, loc.hlen, bits);
+                set_bitfield(_container[loc.index + 1], 0, loc.hlen, bits);
             }
         }
         
