@@ -194,25 +194,45 @@ namespace bv
             return { index, lbegin, llen, hlen };
         }
         
-        template<template<typename ...> class Container>
+        
+        /*
+         * This very fast and clever code is courtesy of Hans Klünder
+         * from this Stack Overflow question:
+         *
+         * http://stackoverflow.com/questions/27617924
+         *
+         * Original comments left.
+         */
+        template < template<typename ...> class C >
         bitview_base::word_type
-        bitview<Container>::get(size_t begin, size_t end) const
+        bitview<C>::get(size_t begin, size_t end) const
         {
-            if(is_empty_range(begin, end))
-                return 0;
+            static constexpr size_t bits = bitsize<word_type>();
+            static constexpr size_t mask = ~ size_t(0) / bits * bits;
             
-            check_valid_range(begin, end, size());
+            // everything above has been computed at compile time.
+            // Now do some work:
             
-            range_location_t loc = locate(begin, end);
+            // the index in the container of
+            // the lower or higher item needed
+            size_t lo_index = (begin          ) / bits;
+            size_t hi_index = (end - (end > 0)) / bits;
             
-            word_type low = bitfield(_container[loc.index],
-                                     loc.lbegin, loc.lbegin + loc.llen);
+            // we read container[hi_adr] first and possibly delete
+            // the highest bits:
+            size_t hi_shift = size_t(mask - end) % bits;
+            word_type hi_val = _container[hi_index] << hi_shift >> hi_shift;
             
-            word_type high = 0;
-            if(loc.hlen != 0)
-                high = lowbits(_container[loc.index + 1], loc.hlen) << loc.llen;
-                
-            return high | low;
+            // if all bits are in the same item,
+            // we delete the lower bits and are done:
+            size_t lo_shift = begin % bits;
+            if ( hi_index <= lo_index )
+                return (hi_val >> lo_shift) * (begin < end);
+            
+            // else we have to read the lower item as well, and combine both
+            return ( hi_val << (bits - lo_shift)    |
+                     _container[lo_index] >> lo_shift );
+            
         }
         
         template<template<typename ...> class Container>
