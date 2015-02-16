@@ -115,15 +115,19 @@ namespace bv
             return ((ff << (W - end)) >> (W - end + begin)) << begin;
         }
         
+
         /*
          * Returns the lower n bits in the word
          */
         template<typename T, REQUIRES(std::is_integral<T>::value)>
         T lowbits(T val, size_t n)
         {
-            assert(n <= bitsize<T>());
+            constexpr size_t W = bitsize<T>();
+            assert(n <= W);
             
-            return val & mask<T>(0, n);
+            size_t shift = (W - n) % W;
+
+            return ((val << shift) >> shift) * (n != 0);
         }
         
         /*
@@ -134,10 +138,11 @@ namespace bv
         T highbits(T val, size_t n)
         {
             constexpr size_t W = bitsize<T>();
-            
             assert(n <= W);
             
-            return val & mask<T>(W - n, W);
+            size_t shift = (W - n) % W;
+
+            return ((val >> shift) << shift) * (n != 0);
         }
         
         /*

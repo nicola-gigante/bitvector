@@ -152,12 +152,12 @@ namespace bv
             template<template<typename ...> class C>
             void copy_forward(bitview<C> const&src,
                               size_t src_begin, size_t src_end,
-                              size_t dest_begin);
+                              size_t dest_begin, size_t dest_end);
             
             template<template<typename ...> class C>
             void copy_backward(bitview<C> const&src,
                                size_t src_begin, size_t src_end,
-                               size_t dest_begin);
+                               size_t dest_begin, size_t dest_end);
         private:
             container_type _container;
         };
@@ -312,38 +312,85 @@ namespace bv
         template<template<typename ...> class Container>
         template<template<typename ...> class C>
         void bitview<Container>::copy_forward(bitview<C> const&srcbv,
-                                              size_t src_begin, size_t src_end,
-                                              size_t dest_begin)
+                                              size_t src_begin, 
+                                              size_t src_end,
+                                              size_t dest_begin, 
+                                              size_t dest_end)
         {
-            size_t len = (src_end - src_begin);
-            size_t rem = len % W;
-            
-            for(size_t step, src = src_begin, dest = dest_begin;
-                src < src_end;
-                len -= step, src += step, dest += step)
+            assert(src_end - src_begin == dest_end - dest_begin);
+
+            size_t dest_begin_index = dest_begin / W;
+            size_t dest_begin_pos   = dest_begin % W;
+            size_t dest_end_index   = dest_end   / W;
+            size_t dest_end_pos     = dest_end   % W;
+
+            size_t highpart = (dest_begin_index == dest_end_index) * 
+                              (W - dest_end_pos);
+
+            size_t len = (W - dest_begin_pos) - highpart;
+
+            word_type v =
+                (srcbv.get(src_begin, src_begin + len) << dest_begin_pos) |
+                lowbits (_container[dest_begin_index], dest_begin_pos)    |
+                highbits(_container[dest_begin_index], highpart);
+            _container[dest_begin_index] = v;
+
+            size_t src_pos = src_begin + len;
+            for(size_t i = dest_begin_index + 1; 
+                i < dest_end_index; 
+                ++i, src_pos += W) 
             {
-                step = len < W ? rem : W;
-                
-                set(dest, dest + step, srcbv.get(src, src + step));
+                _container[i] = srcbv.get(src_pos, src_pos + W);
+            }
+
+            len = src_end - src_pos;
+            if(len > 0) {
+                v = srcbv.get(src_pos, src_pos + len) |
+                    highbits(_container[dest_end_index], W - len);
+                _container[dest_end_index] = v;
             }
         }
         
         template<template<typename ...> class Container>
         template<template<typename ...> class C>
         void bitview<Container>::copy_backward(bitview<C> const&srcbv,
-                                               size_t src_begin, size_t src_end,
-                                               size_t dest_begin)
+                                               size_t src_begin, 
+                                               size_t src_end,
+                                               size_t dest_begin,
+                                               size_t dest_end)
         {
-            size_t len = (src_end - src_begin);
-            size_t rem = len % W;
-            
-            for(size_t step, src = src_begin + len, dest = dest_begin + len;
-                src - src_begin;
-                src -= step, dest -= step)
-            {
-                step = (src - src_begin) == rem ? rem : W;
-                
-                set(dest - step, dest, srcbv.get(src - step, src));
+            assert(src_end - src_begin == dest_end - dest_begin);
+
+            size_t dest_begin_index = dest_begin / W;
+            size_t dest_begin_pos   = dest_begin % W;
+            size_t dest_end_index   = dest_end   / W;
+            size_t dest_end_pos     = dest_end   % W;
+
+            size_t lowpart = 
+                dest_begin_pos * (dest_begin_index == dest_end_index);
+
+            size_t lastpart = dest_end_pos - lowpart;
+
+            size_t src_pos = src_end - lastpart;
+            _container[dest_end_index] =
+                highbits(_container[dest_end_index], W - dest_end_pos) |
+                (srcbv.get(src_pos, src_end) << lowpart)               |
+                lowbits(_container[dest_end_index], lowpart);
+
+            size_t dest_pos = dest_end - lastpart;
+
+            while(dest_pos - dest_begin >= W) {
+                dest_pos -= W;
+                src_pos  -= W;
+
+                _container[dest_pos / W] = srcbv.get(src_pos, src_pos + W);
+            }
+
+            size_t firstpart = src_pos - src_begin;
+            if(firstpart > 0) {
+                _container[dest_begin_index] = 
+                    lowbits(_container[dest_begin_index], dest_begin_pos) |
+                    (srcbv.get(src_begin, src_pos) << dest_begin_pos);
             }
         }
         
@@ -356,10 +403,13 @@ namespace bv
             size_t srclen = src_end - src_begin;
             size_t destlen = dest_end - dest_begin;
             
-            if(destlen < srclen)
+            if(destlen < srclen) {
                 src_end = src_begin + destlen;
+                srclen  = destlen;
+            }
             
-            copy_forward(src, src_begin, src_end, dest_begin);
+            copy_forward(src, src_begin, src_end, 
+                         dest_begin, dest_begin + srclen);
         }
         
         template<template<typename ...> class Container>
@@ -370,13 +420,17 @@ namespace bv
             size_t srclen = src_end - src_begin;
             size_t destlen = dest_end - dest_begin;
             
-            if(destlen < srclen)
+            if(destlen < srclen) {
                 src_end = src_begin + destlen;
+                srclen  = destlen;
+            }
             
             if(this == &src && src_begin < dest_begin)
-                copy_backward(src, src_begin, src_end, dest_begin);
+                copy_backward(src, src_begin, src_end, 
+                              dest_begin, dest_begin + srclen);
             else
-                copy_forward(src, src_begin, src_end, dest_begin);
+                copy_forward(src, src_begin, src_end, 
+                             dest_begin, dest_begin + srclen);
         }
         
         template<template<typename ...> class Container>
