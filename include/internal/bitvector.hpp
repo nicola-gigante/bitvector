@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef BITVECTOR_H
+#ifndef PACKED_BITVECTOR_H
 # error "This is a private file, include bitvector.h instead"
 #endif
 

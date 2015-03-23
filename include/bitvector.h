@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef BITVECTOR_H
-#define BITVECTOR_H
+#ifndef PACKED_BITVECTOR_H
+#define PACKED_BITVECTOR_H
 
 #include "internal/bits.h"
 #include "packed_view.h"
@@ -128,4 +128,4 @@ namespace bv
 
 #include "internal/bitvector.hpp"
 
-#endif // BITVECTOR_H
+#endif // PACKED_BITVECTOR_H

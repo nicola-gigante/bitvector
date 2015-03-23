@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef BITVECTOR_BITS_H
-#define BITVECTOR_BITS_H
+#ifndef PACKED_BITVECTOR_BITS_H
+#define PACKED_BITVECTOR_BITS_H
 
 #include <cstddef>
 #include <climits>

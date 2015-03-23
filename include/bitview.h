@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef BITVECTOR_BITVIEW_H
-#define BITVECTOR_BITVIEW_H
+#ifndef PACKED_BITVECTOR_BITVIEW_H
+#define PACKED_BITVECTOR_BITVIEW_H
 
 #include "internal/bits.h"
 #include "internal/view_reference.h"

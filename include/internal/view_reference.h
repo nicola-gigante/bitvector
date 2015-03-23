@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef BITVECTOR_VIEW_REFERENCE_H
-#define BITVECTOR_VIEW_REFERENCE_H
+#ifndef PACKED_BITVECTOR_VIEW_REFERENCE_H
+#define PACKED_BITVECTOR_VIEW_REFERENCE_H
 
 namespace bv {
     namespace internal {
