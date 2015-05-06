@@ -67,11 +67,14 @@ void test_packed_view()
     v[4] = 50;
     v[5] = 60;
     
+    v[4] = v[5];
+    
     v(0, 3) += 10;
     assert(v[0] == 20);
     assert(v[1] == 30);
     assert(v[2] == 40);
     assert(v[3] == 40);
+    assert(v[4] == 60);
     
     v(0, 3) -= 10;
     assert(v[0] == 10);
@@ -94,6 +97,16 @@ void test_packed_view()
     assert(v[3] == 10);
     assert(v[4] == 20);
     assert(v[5] == 30);
+    
+    // Test std::sort to test the behavior of iterators
+    v[0] = 40;
+    v[1] = 30;
+    v[2] = 20;
+    v[3] = 10;
+    
+    std::sort(v.begin(), v.end());
+    
+    assert(std::is_sorted(v.begin(), v.end()));
 }
 
 void test_word()
@@ -174,11 +187,11 @@ void test_bits()
 }
 
 int main()
-{
-    test_bits();
-    test_word();
+{    
+    //test_bits();
+    //test_word();
     test_packed_view();
-    test_bitvector();
+    //test_bitvector();
     
     return 0;
 }

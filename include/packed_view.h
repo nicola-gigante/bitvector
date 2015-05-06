@@ -31,14 +31,24 @@ namespace bv
         {
             static constexpr size_t W = bitview<Container>::W;
             
+            template<bool IsConst>
+            class packed_iterator;
+            
         public:
             using word_type  = typename bitview<Container>::word_type;
             using value_type = word_type;
             
-            using range_reference       = internal::range_reference<packed_view>;
-            using const_range_reference = internal::const_range_reference<packed_view>;
-            using item_reference        = internal::item_reference<packed_view>;
-            using const_item_reference  = internal::const_item_reference<packed_view>;
+            using range_reference        = internal::range_reference<packed_view>;
+            using const_range_reference  = internal::const_range_reference<packed_view>;
+            using reference              = internal::item_reference<packed_view>;
+            using const_reference        = internal::const_item_reference<packed_view>;
+            using difference_type        = ssize_t;
+            using const_pointer          = packed_iterator<true>;
+            using pointer                = packed_iterator<false>;
+            using const_iterator         = const_pointer;
+            using iterator               = pointer;
+            using reverse_iterator       = std::reverse_iterator<iterator>;
+            using reverse_const_iterator = std::reverse_iterator<const_iterator>;
             
             using container_type = typename bitview<Container>::container_type;
             
@@ -137,15 +147,38 @@ namespace bv
                 return { *this, begin, end };
             }
             
-            item_reference operator[](size_t index) {
+            reference operator[](size_t index) {
                 assert(index < size());
                 return { *this, index };
             }
             
-            const_item_reference operator[](size_t index) const {
+            const_reference operator[](size_t index) const {
                 assert(index < size());
                 return { *this, index };
             }
+            
+            iterator begin() { return iterator(this, 0); }
+            iterator end()   { return iterator(this, _size); }
+            
+            const_iterator begin() const { return const_iterator(this, 0); }
+            const_iterator end()   const { return const_iterator(this, _size); }
+            
+            const_iterator cbegin() const { return begin(); }
+            const_iterator cend()   const { return end();   }
+            
+            reverse_iterator rbegin() { return reverse_iterator(end()); }
+            reverse_iterator rend()   { return reverse_iterator(begin()); }
+            
+            reverse_const_iterator rbegin() const {
+                return reverse_const_iterator(cend());
+            }
+            
+            reverse_const_iterator rend()   const {
+                return reverse_const_iterator(cbegin());
+            }
+            
+            reverse_const_iterator crbegin() const { return rbegin(); }
+            reverse_const_iterator crend()   const { return rend();   }
             
         private:
             /*
@@ -291,6 +324,140 @@ namespace bv
                                     sep, ssep);
         }
     
+        template<template<typename ...> class C>
+        template<bool IsConst>
+        class packed_view<C>::packed_iterator {
+            friend class packed_view;
+            
+            using view_t = typename
+                std::conditional<IsConst, packed_view const, packed_view>::type;
+            
+            view_t *_v = nullptr;
+            size_t _index = 0;
+            
+            packed_iterator(view_t *v, size_t index)
+                : _v(v), _index(index) { }
+
+        public:
+            using iterator_category = std::random_access_iterator_tag;
+            using difference_type   = typename view_t::difference_type;
+            using value_type        = typename view_t::value_type;
+            using pointer           = packed_iterator;
+            using reference         = typename
+                std::conditional<IsConst,
+                                 typename view_t::const_reference,
+                                 typename view_t::reference>::type;
+            
+            packed_iterator() = default;
+            packed_iterator(packed_iterator const&) = default;
+            
+            template<typename T = void,
+                     REQUIRES(std::is_same<T,T>::value && IsConst)>
+            packed_iterator(packed_iterator<false> const&it)
+                : _v(it._v), _index(it._index) { }
+            
+            packed_iterator &operator=(packed_iterator const&) = default;
+            
+            // Iterator
+            reference operator*() const {
+                return (*_v)[_index];
+            }
+            
+            packed_iterator &operator++() {
+                ++_index;
+                return *this;
+            }
+            
+            // EqualityComparable
+            bool operator==(packed_iterator it) const {
+                return _index == it._index;
+            }
+            
+            // ForwardIterator
+            bool operator!=(packed_iterator it) const {
+                return _index != it._index;
+            }
+            
+            packed_iterator operator++(int) {
+                packed_iterator it(*this);
+                ++_index;
+                return it;
+            }
+            
+            // BidirectionalIterator
+            packed_iterator &operator--() {
+                --_index;
+                return *this;
+            }
+            
+            packed_iterator operator--(int) {
+                packed_iterator it(*this);
+                --_index;
+                return it;
+            }
+            
+            // RandomAccessIterator
+            packed_iterator &operator+=(difference_type n) {
+                _index += n;
+                return *this;
+            }
+            
+            packed_iterator operator+(difference_type n) const {
+                packed_iterator it(*this);
+                
+                it += n;
+                
+                return it;
+            }
+            
+            friend packed_iterator operator+(difference_type n,
+                                             packed_iterator it)
+            {
+                return it + n;
+            }
+            
+            packed_iterator &operator-=(difference_type n) {
+                _index -= n;
+                return *this;
+            }
+            
+            packed_iterator operator-(difference_type n) const {
+                packed_iterator it(*this);
+                
+                it -= n;
+                
+                return it;
+            }
+            
+            friend packed_iterator operator-(difference_type n,
+                                             packed_iterator it) {
+                return it - n;
+            }
+            
+            difference_type operator-(packed_iterator it) {
+                return difference_type(_index) - difference_type(it._index);
+            }
+            
+            reference operator[](difference_type i) const {
+                return (*_v)[_index + i];
+            }
+            
+            bool operator<(packed_iterator it) const {
+                return _index < it._index;
+            }
+            
+            bool operator<=(packed_iterator it) const {
+                return _index <= it._index;
+            }
+            
+            bool operator>(packed_iterator it) const {
+                return _index > it._index;
+            }
+            
+            bool operator>=(packed_iterator it) const {
+                return _index >= it._index;
+            }
+        };
     } // namespace internal
     
     // Public thing

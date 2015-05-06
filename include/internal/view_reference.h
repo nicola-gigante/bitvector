@@ -188,7 +188,6 @@ namespace bv {
             size_t _index;
         };
         
-        
         template<typename Container>
         class item_reference
         {
@@ -218,6 +217,23 @@ namespace bv {
                 _v.set(_index, v);
                 
                 return *this;
+            }
+            
+            item_reference const&operator=(item_reference r) const {
+                _v.set(_index, r.value());
+                
+                return *this;
+            }
+            
+            friend
+            void swap(item_reference<Container> r1,
+                      item_reference<Container> r2)
+            {
+                using std::swap;
+                
+                value_type v = r1;
+                r1 = r2;
+                r2 = v;
             }
             
         private:

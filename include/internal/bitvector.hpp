@@ -228,8 +228,8 @@ namespace bv
                                  typename packed_data::range_reference>;
             
             using item_reference =
-            conditional_t<Const, typename packed_data::const_item_reference,
-                                 typename packed_data::item_reference>;
+                conditional_t<Const, typename packed_data::const_reference,
+                                     typename packed_data::reference>;
             
             // Reference to the parent bitvector structure
             bt_impl_t &_vector;
