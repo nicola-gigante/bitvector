@@ -4,8 +4,14 @@ A C++ container-like data structure for storing vector of bits with fast
 appending on both sides and fast insertion in the middle, all in succinct space.
 
 The bitvector is implemented as a packed B+-tree. For a full explaination of the
-data structure, and how we use it, see the coming soon paper from
-Prezza, Policriti et al. (I'll link it here when ready).
+data structure, and how we use it, see:
+
+A. Policriti, N. Gigante, N. Prezza,  
+[*Average Linear Time and Compressed Space Construction of the Burrows-Wheeler Transform*][1],  
+Proc. of the 9th International Conference on Language and Automata Theory and Applications,
+pages 587-598
+
+[1]: https://doi.org/10.1007/978-3-319-15579-1_46
 
 ### Requirements
 
