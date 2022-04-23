@@ -812,9 +812,9 @@ namespace bv
                 
                 bool b = set(t.child(child), new_index, bit);
                 if(b && !bit)
-                    t.ranks(child, degree()) -= 1;
+                    t.ranks(child, t.degree()) -= 1;
                 if(!b && bit)
-                    t.ranks(child, degree()) += 1;
+                    t.ranks(child, t.degree()) += 1;
                 return b;
             }
         }
