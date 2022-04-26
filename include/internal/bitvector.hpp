@@ -524,8 +524,11 @@ namespace bv
          * member functions that can modify the nodes' data
          */
         template<size_t W, allocation_policy_t AP>
+        using nonconst_subtree_ref_base = 
+            typename bt_impl<W, AP>::template subtree_ref_base<false>;
+        template<size_t W, allocation_policy_t AP>
         class bt_impl<W, AP>::subtree_ref
-            : public bt_impl<W, AP>::template subtree_ref_base<false>
+            : public nonconst_subtree_ref_base<W, AP>
         {
             using Base = subtree_ref_base<false>;
             
